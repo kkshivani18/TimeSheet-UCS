@@ -24,7 +24,7 @@ const months = [
 ];
 
 export default function Dashboard({ navigation }) {
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); 
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedDate, setSelectedDate] = useState('');
     const [modalVisible, setModalVisible] = useState(false);
@@ -38,7 +38,7 @@ export default function Dashboard({ navigation }) {
     const [attendanceId, setAttendanceId] = useState(null);
     const [isCheckInDisabled, setIsCheckInDisabled] = useState(false);
     const [isCheckOutDisabled, setIsCheckOutDisabled] = useState(true);
-    
+
     const user = FIREBASE_AUTH.currentUser;
 
     useEffect(() => {
@@ -133,13 +133,13 @@ export default function Dashboard({ navigation }) {
                 Alert.alert('error', 'Please enter a deadline');
                 return;
             }
-    
+
             const user = FIREBASE_AUTH.currentUser;
             if (!user) {
                 Alert.alert('error', 'No user logged in');
                 return;
             }
-    
+
             const newTask = {
                 userId: user.uid,
                 email: user.email,
@@ -152,19 +152,19 @@ export default function Dashboard({ navigation }) {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
-            
+
             // Add task to Firestore
             const docRef = await addDoc(collection(FIRESTORE_DB, 'tasks'), newTask);
-            
+
             // Show success message
             Alert.alert('Success', 'Task added successfully');
-            
+
             // Navigate to Tasks screen with both date and new task
-            navigation.navigate('Tasks', { 
+            navigation.navigate('Tasks', {
                 date: selectedDate,
-                newTask: { id: docRef.id, ...newTask } 
+                newTask: { id: docRef.id, ...newTask }
             });
-            
+
             // Reset form and close modal
             setTaskHeading('');
             setTaskDescription('');
@@ -177,16 +177,11 @@ export default function Dashboard({ navigation }) {
     };
 
     const viewTasksForDate = (date) => {
-        navigation.navigate('Tasks', { 
+        navigation.navigate('Tasks', {
             date: date,
             timestamp: new Date().getTime()
         });
     };
-
-    // const getMonthName = (monthNumber) => {
-    //     const monthIndex = monthNumber - 1;
-    //     return months[monthIndex].label;
-    // };
 
     // Check-In
     const handleCheckIn = async () => {
@@ -195,13 +190,14 @@ export default function Dashboard({ navigation }) {
         try {
             const checkInTimestamp = new Date().toISOString();
             setCheckInTime(checkInTimestamp);
+            setCheckOutTime(null);
             setIsCheckInDisabled(true);
             setIsCheckOutDisabled(false);
 
             const docRef = doc(FIRESTORE_DB, 'attendance', user.uid);
             await setDoc(docRef, {
                 checkInTime: checkInTimestamp,
-                checkOutTime: checkOutTimestamp,
+                checkOutTime: null,
                 workedHours: 0,
                 userId: user.uid,
                 email: user.email,
@@ -211,7 +207,7 @@ export default function Dashboard({ navigation }) {
             });
 
             console.log("Check-In saved in Firestore:", checkInTimestamp);
-            Alert.alert("Success", "Checked In Successfully!");
+            Alert.alert("Success", `Checked In at ${formatDateTime(checkInTimestamp)}!`);
         } catch (error) {
             console.error("Error during check-in:", error);
             Alert.alert("Error", "Failed to Check In");
@@ -220,28 +216,48 @@ export default function Dashboard({ navigation }) {
 
     // Check-Out
     const handleCheckOut = async () => {
-        if (!user || !checkInTime) return; 
-        
+        if (!user || !checkInTime) return;
+
         try {
             const checkOutTimestamp = new Date().toISOString();
             const workedHours = (new Date(checkOutTimestamp) - new Date(checkInTime)) / (1000 * 60 * 60); // Convert ms to hours
-    
+
             const attendanceRef = doc(FIRESTORE_DB, 'attendance', user.uid);
             await updateDoc(attendanceRef, {
                 checkOutTime: checkOutTimestamp,
-                workedHours: workedHours.toFixed(2) 
+                workedHours: workedHours.toFixed(2)
             });
-    
+
             setCheckOutTime(checkOutTimestamp);
             setWorkedHours(workedHours.toFixed(2));
-            
+
+            // Reset button states after check-out
+            setIsCheckInDisabled(false);
+            setIsCheckOutDisabled(true);
+
+            // Show success message with formatted time
+            Alert.alert("Success", `Checked Out at ${formatDateTime(checkOutTimestamp)}!\nWorked Hours: ${workedHours.toFixed(2)} hrs`);
+
         } catch (error) {
             console.error("Error during check-out:", error);
         }
-    };    
+    };
+
+    // function to format date strings
+    const formatDateTime = (dateTimeString) => {
+        if (!dateTimeString) return 'Not Available';
+
+        try {
+            const date = new Date(dateTimeString);
+            return format(date, 'dd-MM-yyyy HH:mm');
+        } catch (error) {
+            console.error('Error formatting date:', error);
+            return dateTimeString;
+        }
+    };
 
     const handleLogout = () => {
-        FIREBASE_AUTH.signOut() 
+        FIREBASE_AUTH.signOut()
             .then(() => {
                 console.log('User logged out');
                 navigation.navigate('Login');
@@ -268,22 +284,22 @@ export default function Dashboard({ navigation }) {
             </View>
 
             {/* check in & check out feature */}
-            <Text style={styles.checkinText}>Check-In Time: {checkInTime || 'Not Checked In'}</Text>
-            <Text style={styles.checkinText}>Check-Out Time: {checkOutTime || 'Not Checked Out'}</Text>
-            <Text style={styles.checkinText}>Worked Hours: {workedHours ? `${workedHours} hrs` : 'N/A'}</Text>  
+            <Text style={styles.checkinText}>Check-In Time: {checkInTime ? formatDateTime(checkInTime) : 'Not Checked In'}</Text>
+            <Text style={styles.checkinText}>Check-Out Time: {checkOutTime ? formatDateTime(checkOutTime) : 'Not Checked Out'}</Text>
+            <Text style={styles.checkinText}>Worked Hours: {workedHours ? `${workedHours} hrs` : 'N/A'}</Text>
 
             <View style={styles.buttonRow}>
-                <Pressable 
-                    style={[styles.checkinButton, isCheckInDisabled && styles.disabledButton]} 
-                    onPress={handleCheckIn} 
+                <Pressable
+                    style={[styles.checkinButton, isCheckInDisabled && styles.disabledButton]}
+                    onPress={handleCheckIn}
                     disabled={isCheckInDisabled}
                 >
                     <Text style={styles.buttonText}>Check In</Text>
                 </Pressable>
 
-                <Pressable 
-                    style={[styles.checkinButton, isCheckOutDisabled && styles.disabledButton]} 
-                    onPress={handleCheckOut} 
+                <Pressable
+                    style={[styles.checkinButton, isCheckOutDisabled && styles.disabledButton]}
+                    onPress={handleCheckOut}
                     disabled={isCheckOutDisabled}
                 >
                     <Text style={styles.buttonText}>Check Out</Text>
@@ -315,7 +331,7 @@ export default function Dashboard({ navigation }) {
             {/* calendar */}
             <View style={styles.card}>
                 <Calendar
-                    key={`${selectedYear}-${selectedMonth}`} 
+                    key={`${selectedYear}-${selectedMonth}`}
                     style={styles.calendar}
                     hideArrows={true}
                     theme={{
@@ -339,7 +355,7 @@ export default function Dashboard({ navigation }) {
                         textDayHeaderFontSize: 14,
                     }}
                     markedDates={getCurrentMonthDays()}
-                    current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`} 
+                    current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`}
                     onDayPress={(day) => {
                         setSelectedDate(day.dateString);
                         Alert.alert(
@@ -373,14 +389,14 @@ export default function Dashboard({ navigation }) {
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}> Add Task for {selectedDate}</Text>
-                            <TouchableOpacity 
-                                onPress={() => setModalVisible(false)} 
+                            <TouchableOpacity
+                                onPress={() => setModalVisible(false)}
                                 style={styles.closeButton}
                             >
                                 <Ionicons name="close" size={24} color="black" />
                             </TouchableOpacity>
                         </View>
-                        
+
                         <View style={styles.inputContainer}>
                             <Text style={styles.inputLabel}>Task Heading</Text>
                             <TextInput
@@ -389,7 +405,7 @@ export default function Dashboard({ navigation }) {
                                 value={taskHeading}
                                 onChangeText={setTaskHeading}
                             />
-                            
+
                             <Text style={styles.inputLabel}>Description</Text>
                             <TextInput
                                 style={[styles.input, styles.textArea]}
@@ -399,7 +415,7 @@ export default function Dashboard({ navigation }) {
                                 multiline={true}
                                 numberOfLines={4}
                             />
-                            
+
                             <Text style={styles.inputLabel}>Deadline</Text>
                             <TextInput
                                 style={styles.input}
@@ -409,8 +425,8 @@ export default function Dashboard({ navigation }) {
                             />
                         </View>
 
-                        <TouchableOpacity 
-                            style={styles.saveButton} 
+                        <TouchableOpacity
+                            style={styles.saveButton}
                             onPress={handleSaveTask}
                         >
                             <Text style={styles.saveButtonText}>Save Task</Text>
@@ -546,7 +562,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         alignItems: 'center',
     },
-    
+
     saveButtonText: {
         color: 'white',
         fontSize: 16,
@@ -563,12 +579,12 @@ const styles = StyleSheet.create({
     checkinText: {
         fontSize: 15,
         alignSelf: 'baseline',
-        marginLeft: 10, 
+        marginLeft: 10,
         marginBottom: 10,
     },
     buttonRow: {
         flexDirection: 'row',
-        justifyContent: 'space-around', 
+        justifyContent: 'space-around',
         width: '100%',
     },
     checkinButton: {
