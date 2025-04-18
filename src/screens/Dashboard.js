@@ -284,9 +284,11 @@ export default function Dashboard({ navigation }) {
             </View>
 
             {/* check in & check out feature */}
-            <Text style={styles.checkinText}>Check-In Time: {checkInTime ? formatDateTime(checkInTime) : 'Not Checked In'}</Text>
-            <Text style={styles.checkinText}>Check-Out Time: {checkOutTime ? formatDateTime(checkOutTime) : 'Not Checked Out'}</Text>
-            <Text style={styles.checkinText}>Worked Hours: {workedHours ? `${workedHours} hrs` : 'N/A'}</Text>
+            <View style={styles.attendanceCard}>
+                <Text style={styles.checkinText}>Check-In Time: {checkInTime ? formatDateTime(checkInTime) : 'Not Checked In'}</Text>
+                <Text style={styles.checkinText}>Check-Out Time: {checkOutTime ? formatDateTime(checkOutTime) : 'Not Checked Out'}</Text>
+                <Text style={styles.checkinText}>Worked Hours: {workedHours ? `${workedHours} hrs` : 'N/A'}</Text>
+            </View>
 
             <View style={styles.buttonRow}>
                 <Pressable
@@ -576,11 +578,27 @@ const styles = StyleSheet.create({
         color: '#333',
         marginBottom: 10,
     },
+    attendanceCard: {
+        backgroundColor: 'white',
+        borderRadius: 10,
+        padding: 10,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+        width: '90%',
+        marginBottom: 10,
+    },
     checkinText: {
         fontSize: 15,
+        fontWeight: 'bold',
         alignSelf: 'baseline',
         marginLeft: 10,
-        marginBottom: 10,
+        marginBottom: 5,
     },
     buttonRow: {
         flexDirection: 'row',

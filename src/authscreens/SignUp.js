@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Image, TouchableOpacity, Alert } from 'react-native';
 import { FIREBASE_AUTH,FIRESTORE_DB } from '../firebaseConfig';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import { Ionicons } from "@expo/vector-icons";   
+import { Ionicons } from "@expo/vector-icons";
 import { doc, setDoc } from 'firebase/firestore';
 // import * as Font from 'expo-font';
 
@@ -30,7 +30,7 @@ export default function SignUp({ navigation }) {
     const handleSignUp = async () => {
         try {
             setLoading(true);
-            
+
             if (username === '') {
                 setMessage('Please enter your username');
                 setMessageType('error');
@@ -42,16 +42,16 @@ export default function SignUp({ navigation }) {
                 setMessageType('error');
                 return;
             }
-        
+
             if (!validatePassword(password)) {
                 setMessage('Password must have at least: \n - 1 capital letter \n - 1 small letter \n - 1 number \n - 1 special character \n - 8 characters long password');
                 setMessageType('error');
                 return;
             }
-        
+
             const userCredential = await createUserWithEmailAndPassword(
-                FIREBASE_AUTH, 
-                email, 
+                FIREBASE_AUTH,
+                email,
                 password
             );
 
@@ -59,7 +59,7 @@ export default function SignUp({ navigation }) {
             await setDoc(doc(FIRESTORE_DB, 'users', userCredential.user.uid), {
                 username: username,
                 email: email.toLowerCase(),
-                role: 'user', 
+                role: 'user',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             });
@@ -79,11 +79,11 @@ export default function SignUp({ navigation }) {
         <View style={styles.container}>
             <View style={styles.header}>
                 <Image
-                    source={require('../../images/UCS logo.png')} 
+                    source={require('../../images/UCS logo.png')}
                     style={styles.logo}
                 />
             </View>
-        
+
             <Text style={styles.title}>Create an account</Text>
 
             {message ? (
@@ -145,16 +145,17 @@ const styles = StyleSheet.create({
     },
 
     header: {
-        flexDirection: 'row',
+        width: '100%',
         alignItems: 'center',
+        justifyContent: 'center',
         marginBottom: 20,
     },
 
     logo: {
         width: 125,
         height: 50,
-        marginRight: 10,
-        marginBottom: 45,
+        marginBottom: 20,
+        alignSelf: 'center'
     },
 
     title: {
@@ -162,7 +163,7 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         fontFamily: "Arial",
         alignSelf: 'center',
-        marginBottom: 15, 
+        marginBottom: 15,
     },
 
     input: {
@@ -181,7 +182,7 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         width: '90%',
         alignSelf: 'center',
-        paddingRight: 10, 
+        paddingRight: 10,
         marginBottom: 20,
     },
 

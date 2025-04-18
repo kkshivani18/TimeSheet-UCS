@@ -571,11 +571,21 @@ const styles = StyleSheet.create({
         backgroundColor: '#f0f0f0',
         marginTop: 25,
     },
+    // header: {
+    //     flexDirection: 'row',
+    //     alignItems: 'center',
+    //     padding: 20,
+    //     borderRadius: 15,
+    // },
     header: {
+        width: '100%',
+        height: 50,
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 20,
+        paddingHorizontal: 10,
         borderRadius: 15,
+        backgroundColor: '#f8f8f8',
+        marginBottom: 20,
     },
     title: {
         fontSize: 20,

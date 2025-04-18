@@ -186,7 +186,7 @@ export default function Admin({ navigation }) {
             {selectedUser && (
                 <View style={styles.calendarContainer}>
                     <Text style={styles.subtitle}>
-                        Viewing {selectedUser.username}'s Calendar
+                        {selectedUser.username}'s Calendar
                     </Text>
                     <Calendar
                         key={`${selectedYear}-${selectedMonth}`} 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
 import { signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { getDoc, doc } from 'firebase/firestore';
@@ -111,6 +111,10 @@ export default function Login({ navigation }) {
 
     return (
         <View style={styles.container}>
+            <Image
+                source={require('../../images/UCS logo.png')}
+                style={styles.logo}
+            />
             <Text style={styles.title}>Sign In</Text>
 
             {message ? (
@@ -176,12 +180,21 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontWeight: 'bold',
         fontFamily: 'Arial',
-        marginTop: 50,
+        marginTop: 20,
+    },
+
+    logo: {
+        marginTop: 10,
+        width: 125,
+        height: 50,
+        marginBottom: 20,
+        alignSelf: 'center'
     },
 
     input: {
         borderWidth: 1,
         padding: 10,
+        marginTop: -20,
         marginBottom: 20,
         borderRadius: 10,
         width: '90%',
