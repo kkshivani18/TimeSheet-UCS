@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, Pressable} from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, Pressable, ScrollView,  Platform } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Picker } from '@react-native-picker/picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
 import { collection, addDoc, serverTimestamp, getDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -30,11 +31,15 @@ export default function Dashboard({ navigation }) {
     const [modalVisible, setModalVisible] = useState(false);
     const [taskHeading, setTaskHeading] = useState('');
     const [taskDescription, setTaskDescription] = useState('');
-    const [taskDeadline, setTaskDeadline] = useState('');
+    // const [taskDeadline, setTaskDeadline] = useState('');
+    const [deadlineDate, setDeadlineDate] = useState(new Date());
+    const [showPicker, setShowPicker] = useState(false);
+    const [pickerMode, setPickerMode] = useState('date');
     const [username, setUsername] = useState('');
     const [checkInTime, setCheckInTime] = useState(null);
     const [checkOutTime, setCheckOutTime] = useState(null);
     const [workedHours, setWorkedHours] = useState(null);
+    const [totalWorkedMinutes, setTotalWorkedMinutes] = useState(0);
     const [attendanceId, setAttendanceId] = useState(null);
     const [isCheckInDisabled, setIsCheckInDisabled] = useState(false);
     const [isCheckOutDisabled, setIsCheckOutDisabled] = useState(true);
@@ -64,26 +69,80 @@ export default function Dashboard({ navigation }) {
     }, []);
 
     // Fetch attendance data
-     const fetchAttendance = async () => {
+    // const fetchAttendance = async () => {
+    //     if (!user) return;
+
+    //     try {
+    //         const docRef = doc(FIRESTORE_DB, 'attendance', user.uid);
+    //         const docSnap = await getDoc(docRef);
+
+    //         if (docSnap.exists()) {
+    //             const data = docSnap.data();
+    //             setCheckInTime(data.checkInTime);
+    //             setCheckOutTime(data.checkOutTime);
+    //             setWorkedHours(data.workedHours);
+
+    //             // Disable/Enable Buttons Based on Data
+    //             if (data.checkInTime && !data.checkOutTime) {
+    //                 setIsCheckInDisabled(true);
+    //                 setIsCheckOutDisabled(false);
+    //             } else {
+    //                 setIsCheckInDisabled(false);
+    //                 setIsCheckOutDisabled(true);
+    //             }
+    //         } else {
+    //             console.log("No attendance record found, creating new one.");
+    //             setIsCheckInDisabled(false);
+    //             setIsCheckOutDisabled(true);
+    //         }
+    //     } catch (error) {
+    //         console.error("Error fetching attendance:", error);
+    //     }
+    // };
+
+    const fetchAttendance = async () => {
         if (!user) return;
 
         try {
             const docRef = doc(FIRESTORE_DB, 'attendance', user.uid);
             const docSnap = await getDoc(docRef);
 
+            const todayDate = new Date().toLocaleDateString();
+
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                setCheckInTime(data.checkInTime);
-                setCheckOutTime(data.checkOutTime);
-                setWorkedHours(data.workedHours);
 
-                // Disable/Enable Buttons Based on Data
-                if (data.checkInTime && !data.checkOutTime) {
-                    setIsCheckInDisabled(true);
-                    setIsCheckOutDisabled(false);
-                } else {
+                // If it's a new day, reset everything
+                if (data.date !== todayDate) {
+                    await updateDoc(docRef, {
+                        checkInTime: null,
+                        checkOutTime: null,
+                        workedHours: '',
+                        totalWorkedMinutes: 0,
+                        date: todayDate,
+                        timestamp: serverTimestamp(),
+                    });
+                    setCheckInTime(null);
+                    setCheckOutTime(null);
+                    setWorkedHours('');
+                    setTotalWorkedMinutes(0);
                     setIsCheckInDisabled(false);
                     setIsCheckOutDisabled(true);
+                } else {
+                    setCheckInTime(data.checkInTime);
+                    setCheckOutTime(data.checkOutTime);
+                    setWorkedHours(data.workedHours);
+                    setTotalWorkedMinutes(data.totalWorkedMinutes || 0);
+
+                    // Disable/Enable Buttons
+                    if (data.checkInTime) {
+                        setIsCheckInDisabled(true);
+                        // Always enable check-out if checked in
+                        setIsCheckOutDisabled(false);
+                    } else {
+                        setIsCheckInDisabled(false);
+                        setIsCheckOutDisabled(true);
+                    }
                 }
             } else {
                 console.log("No attendance record found, creating new one.");
@@ -122,23 +181,22 @@ export default function Dashboard({ navigation }) {
         try {
             // Form validation
             if (!taskHeading.trim()) {
-                Alert.alert('error', 'Please enter a task heading');
+                Alert.alert('Error', 'Please enter a task heading');
                 return;
             }
             if (!taskDescription.trim()) {
-                Alert.alert('error', 'Please enter a task description');
-                return;
-            }
-            if (!taskDeadline.trim()) {
-                Alert.alert('error', 'Please enter a deadline');
+                Alert.alert('Error', 'Please enter a task description');
                 return;
             }
 
             const user = FIREBASE_AUTH.currentUser;
             if (!user) {
-                Alert.alert('error', 'No user logged in');
+                Alert.alert('Error', 'No user logged in');
                 return;
             }
+
+            // Format the deadline date
+            const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
 
             const newTask = {
                 userId: user.uid,
@@ -147,7 +205,7 @@ export default function Dashboard({ navigation }) {
                 date: new Date(selectedDate).toISOString(),
                 heading: taskHeading.trim(),
                 description: taskDescription.trim(),
-                deadline: taskDeadline.trim(),
+                deadline: formattedDeadline,
                 completed: false,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
@@ -168,7 +226,7 @@ export default function Dashboard({ navigation }) {
             // Reset form and close modal
             setTaskHeading('');
             setTaskDescription('');
-            setTaskDeadline('');
+            setDeadlineDate(new Date());
             setModalVisible(false);
         } catch (error) {
             console.error('Error saving task:', error);
@@ -199,6 +257,7 @@ export default function Dashboard({ navigation }) {
                 checkInTime: checkInTimestamp,
                 checkOutTime: null,
                 workedHours: 0,
+                totalWorkedMinutes: totalWorkedMinutes, // Preserve existing total
                 userId: user.uid,
                 email: user.email,
                 username: username,
@@ -220,26 +279,46 @@ export default function Dashboard({ navigation }) {
 
         try {
             const checkOutTimestamp = new Date().toISOString();
-            const workedHours = (new Date(checkOutTimestamp) - new Date(checkInTime)) / (1000 * 60 * 60); // Convert ms to hours
+
+            // Calculate time worked for this session
+            const diffMs = new Date(checkOutTimestamp) - new Date(checkInTime);
+            const session = Math.floor(diffMs / (1000 * 60));
+
+            // Add to total worked minutes
+            const newTotalMinutes = session;
+            setTotalWorkedMinutes(newTotalMinutes);
+
+            // Calculate total hours and minutes for display
+            const totalHours = Math.floor(newTotalMinutes / 60);
+            const remainingMinutes = newTotalMinutes % 60;
+            const totalWorkedDuration = `${totalHours} hrs ${remainingMinutes} mins`;
+
+            // Calculate session duration for display
+            const sessionHours = Math.floor(session / 60);
+            const sessionRemainingMinutes = session % 60;
+            const sessionDuration = `${sessionHours} hrs ${sessionRemainingMinutes} mins`;
 
             const attendanceRef = doc(FIRESTORE_DB, 'attendance', user.uid);
             await updateDoc(attendanceRef, {
                 checkOutTime: checkOutTimestamp,
-                workedHours: workedHours.toFixed(2)
+                workedHours: totalWorkedDuration,
+                totalWorkedMinutes: newTotalMinutes
             });
 
             setCheckOutTime(checkOutTimestamp);
-            setWorkedHours(workedHours.toFixed(2));
+            setWorkedHours(totalWorkedDuration);
 
-            // Reset button states after check-out
-            setIsCheckInDisabled(false);
-            setIsCheckOutDisabled(true);
+            // Don't disable check-out button after checking out
+            // This allows multiple check-outs
 
-            // Show success message with formatted time
-            Alert.alert("Success", `Checked Out at ${formatDateTime(checkOutTimestamp)}!\nWorked Hours: ${workedHours.toFixed(2)} hrs`);
+            Alert.alert(
+                "Success",
+                `Checked Out - ${formatDateTime(checkOutTimestamp)}!\n\nThis session: ${sessionDuration}\nWorked Hours: ${totalWorkedDuration}`
+            );
 
         } catch (error) {
             console.error("Error during check-out:", error);
+            Alert.alert("Error", "Failed to Check Out");
         }
     };
 
@@ -286,8 +365,8 @@ export default function Dashboard({ navigation }) {
             {/* check in & check out feature */}
             <View style={styles.attendanceCard}>
                 <Text style={styles.checkinText}>Check-In Time: {checkInTime ? formatDateTime(checkInTime) : 'Not Checked In'}</Text>
-                <Text style={styles.checkinText}>Check-Out Time: {checkOutTime ? formatDateTime(checkOutTime) : 'Not Checked Out'}</Text>
-                <Text style={styles.checkinText}>Worked Hours: {workedHours ? `${workedHours} hrs` : 'N/A'}</Text>
+                <Text style={styles.checkinText}>Check-Out: {checkOutTime ? formatDateTime(checkOutTime) : 'Not Checked Out'}</Text>
+                <Text style={styles.checkinText}>Worked Hours: {workedHours ? `${workedHours}` : 'N/A'}</Text>
             </View>
 
             <View style={styles.buttonRow}>
@@ -381,18 +460,25 @@ export default function Dashboard({ navigation }) {
                     }}
                 />
             </View>
+
             <Modal
                 animationType="slide"
                 presentationStyle='pageSheet'
                 visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
+                onRequestClose={() => {
+                    setModalVisible(false);
+                    setShowPicker(false);
+                }}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}> Add Task for {selectedDate}</Text>
                             <TouchableOpacity
-                                onPress={() => setModalVisible(false)}
+                                onPress={() => {
+                                    setModalVisible(false);
+                                    setShowPicker(false);
+                                }}
                                 style={styles.closeButton}
                             >
                                 <Ionicons name="close" size={24} color="black" />
@@ -419,12 +505,87 @@ export default function Dashboard({ navigation }) {
                             />
 
                             <Text style={styles.inputLabel}>Deadline</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Enter deadline (e.g. 5:00 PM)"
-                                value={taskDeadline}
-                                onChangeText={setTaskDeadline}
-                            />
+                            <View style={styles.dateTimeButtonsContainer}>
+                                <TouchableOpacity
+                                    style={styles.dateTimeButton}
+                                    onPress={() => {
+                                        // Ensure any existing picker is closed first
+                                        setShowPicker(false);
+                                        // Use setTimeout to ensure the previous picker is fully closed
+                                        setTimeout(() => {
+                                            setPickerMode('date');
+                                            setShowPicker(true);
+                                        }, 100);
+                                    }}
+                                >
+                                    <Icon name="calendar" type="feather" size={16} color="#007AFF" />
+                                    <Text style={styles.dateTimeButtonText}>Select Date</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.dateTimeButton}
+                                    onPress={() => {
+                                        // Ensure any existing picker is closed first
+                                        setShowPicker(false);
+                                        // Use setTimeout to ensure the previous picker is fully closed
+                                        setTimeout(() => {
+                                            setPickerMode('time');
+                                            setShowPicker(true);
+                                        }, 100);
+                                    }}
+                                >
+                                    <Icon name="clock" type="feather" size={16} color="#007AFF" />
+                                    <Text style={styles.dateTimeButtonText}>Select Time</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.selectedDeadlineContainer}>
+                                <Text style={styles.selectedDeadlineText}>
+                                    {format(deadlineDate, 'dd/MM/yyyy - hh:mm a')}
+                                </Text>
+                            </View>
+
+                            {showPicker && (
+                                <DateTimePicker
+                                    testID="dateTimePicker"
+                                    value={deadlineDate}
+                                    mode={pickerMode}
+                                    is24Hour={false}
+                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    onChange={(_, selectedDate) => {
+                                        // Always hide the picker on Android after selection
+                                        if (Platform.OS === 'android') {
+                                            setShowPicker(false);
+                                        }
+
+                                        // Update the date if a selection was made
+                                        if (selectedDate) {
+                                            // For iOS, if in date mode, switch to time mode after date selection
+                                            if (Platform.OS === 'ios' && pickerMode === 'date') {
+                                                setPickerMode('time');
+                                                // Create a new date with the selected date but keep current time
+                                                const updatedDate = new Date(selectedDate);
+                                                updatedDate.setHours(deadlineDate.getHours());
+                                                updatedDate.setMinutes(deadlineDate.getMinutes());
+                                                setDeadlineDate(updatedDate);
+                                            }
+                                            // For iOS, if in time mode, hide picker after time selection
+                                            else if (Platform.OS === 'ios' && pickerMode === 'time') {
+                                                setShowPicker(false);
+                                                // Create a new date with the current date but selected time
+                                                const updatedDate = new Date(deadlineDate);
+                                                updatedDate.setHours(selectedDate.getHours());
+                                                updatedDate.setMinutes(selectedDate.getMinutes());
+                                                setDeadlineDate(updatedDate);
+                                            }
+                                            // For Android, update the date directly
+                                            else {
+                                                setDeadlineDate(selectedDate);
+                                            }
+                                        }
+                                    }}
+                                />
+                            )}
                         </View>
 
                         <TouchableOpacity
@@ -464,6 +625,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     pickerContainer: {
+        // marginTop: -10,
         flexDirection: 'row',
         justifyContent: 'space-between',
         width: '100%',
@@ -571,14 +733,16 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     usertext: {
+        marginTop: -10,
         textAlign: 'justify',
         fontStyle: 'italic',
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '600',
         color: '#333',
         marginBottom: 10,
     },
     attendanceCard: {
+        // marginTop: 15,
         backgroundColor: 'white',
         borderRadius: 10,
         padding: 10,
@@ -619,5 +783,58 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 15,
         fontWeight: 'bold',
+    },
+    activeSessionText: {
+        color: '#007AFF',
+        fontWeight: 'bold',
+        fontStyle: 'italic',
+        marginTop: 5,
+    },
+    datePickerButton: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 15,
+        backgroundColor: '#f9f9f9',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    dateTimeButtonsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    dateTimeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f0f0f0',
+        borderWidth: 1,
+        borderColor: '#007AFF',
+        borderRadius: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        width: '48%',
+    },
+    dateTimeButtonText: {
+        color: '#007AFF',
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 5,
+    },
+    selectedDeadlineContainer: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 15,
+        backgroundColor: '#f9f9f9',
+    },
+    selectedDeadlineText: {
+        fontSize: 16,
+        color: '#333',
+        textAlign: 'center',
     },
 });

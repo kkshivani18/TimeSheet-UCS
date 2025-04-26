@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
 import { collection, query, where, getDoc, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, serverTimestamp } from 'firebase/firestore';
 import { Icon } from 'react-native-elements';
@@ -9,7 +10,7 @@ export default function Tasks({ route, navigation }) {
 
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
-    
+
     // separate modals for adding and editing tasks
     const [modalAddVisible, setModalAddVisible] = useState(false);
     const [modalEditVisible, setModalEditVisible] = useState(false);
@@ -18,13 +19,22 @@ export default function Tasks({ route, navigation }) {
     const [editingTask, setEditingTask] = useState( null);
     const [editHeading, setEditHeading] = useState('');
     const [editDescription, setEditDescription] = useState('');
-    const [editDeadline, setEditDeadline] = useState('');
+    // const [editDeadline, setEditDeadline] = useState('');
+    const [deadlineDate, setDeadlineDate] = useState(new Date());
+    const [showPicker, setShowPicker] = useState(false);
+    const [pickerMode, setPickerMode] = useState('date');
 
     // date and admin view
     const [selectedDate, setSelectedDate] = useState(null);
+    const [monthlyTasks, setMonthlyTasks] = useState([]);
+    const [monthlyTasksLoaded, setMonthlyTasksLoaded] = useState(false);
     const [isAdminView, setIsAdminView] = useState(false);
     const [viewingUserId, setViewingUserId] = useState(null);
     const [viewingUsername, setViewingUsername] = useState(null);
+
+    // Month selection for monthly tasks view
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
     // role
     const [userRole, setUserRole] = useState(null);
@@ -64,7 +74,7 @@ export default function Tasks({ route, navigation }) {
         if (route.params?.date) {
             setSelectedDate(route.params.date);
         }
-    
+
         if (route.params?.isAdminView) {
             setIsAdminView(true);
             setViewingUserId(route.params.userId);
@@ -78,8 +88,67 @@ export default function Tasks({ route, navigation }) {
     useEffect(() => {
         if (selectedDate && (viewingUserId || !isAdminView)) {
             fetchTasks();
+        } else if (!selectedDate && (viewingUserId || !isAdminView)) {
+            fetchMonthlyTasks();
         }
     }, [selectedDate, viewingUserId, isAdminView]);
+
+    // Fetch monthly tasks when month or year changes
+    useEffect(() => {
+        if (!selectedDate && (viewingUserId || !isAdminView) && !monthlyTasksLoaded) {
+            fetchMonthlyTasks();
+        }
+    }, [selectedMonth, selectedYear, monthlyTasksLoaded]);
+
+    const fetchMonthlyTasks = async () => {
+        try {
+            setLoading(true);
+            const user = FIREBASE_AUTH.currentUser;
+            if (!user) {
+                navigation.replace('Login');
+                return;
+            }
+
+            // Determine which user's tasks to fetch
+            const targetUserId = isAdminView ? viewingUserId : user.uid;
+
+            // Get selected month's start and end dates
+            const startOfMonth = new Date(selectedYear, selectedMonth, 1);
+            startOfMonth.setHours(0, 0, 0, 0);
+
+            const endOfMonth = new Date(selectedYear, selectedMonth + 1, 0);
+            endOfMonth.setHours(23, 59, 59, 999);
+
+            console.log('Fetching monthly tasks for:', {
+                userId: targetUserId,
+                month: selectedMonth + 1,
+                year: selectedYear,
+                isAdminView: isAdminView
+            });
+
+            const tasksQuery = query(
+                collection(FIRESTORE_DB, 'tasks'),
+                where('userId', '==', targetUserId),
+                where('date', '>=', startOfMonth.toISOString()),
+                where('date', '<=', endOfMonth.toISOString())
+            );
+
+            const querySnapshot = await getDocs(tasksQuery);
+            const tasksList = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            console.log('Monthly tasks found:', tasksList.length);
+            setMonthlyTasks(tasksList);
+            setMonthlyTasksLoaded(true);
+        } catch (error) {
+            console.error('Error fetching monthly tasks:', error);
+            Alert.alert('Error', 'Failed to fetch monthly tasks');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const fetchTasks = async () => {
         try {
@@ -89,7 +158,7 @@ export default function Tasks({ route, navigation }) {
                 navigation.replace('Login');
                 return;
             }
-            
+
             // Determine which user's tasks to fetch
             const targetUserId = isAdminView ? viewingUserId : user.uid;
 
@@ -97,20 +166,20 @@ export default function Tasks({ route, navigation }) {
             startDate.setHours(0, 0, 0, 0);
             const endDate = new Date(selectedDate);
             endDate.setHours(23, 59, 59, 999);
-            
+
             console.log('Fetching tasks for:', {
                 userId: targetUserId,
                 date: selectedDate,
                 isAdminView: isAdminView
             }, targetUserId, viewingUserId);
-            
+
             const tasksQuery = query(
                 collection(FIRESTORE_DB, 'tasks'),
                 where('userId', '==', targetUserId),
                 where('date', '>=', startDate.toISOString()),
                 where('date', '<=', endDate.toISOString())
             );
-        
+
             const querySnapshot = await getDocs(tasksQuery);
             const tasksList = querySnapshot.docs.map(doc => ({
                 id: doc.id,
@@ -127,26 +196,37 @@ export default function Tasks({ route, navigation }) {
     };
 
     const handleAddTask = () => {
+        // If no date is selected, prompt the user to select a date first
+        if (!selectedDate) {
+            Alert.alert(
+                'Select a Date',
+                'Select a date from the Dashboard calendar, to add a task.',
+                [{ text: 'OK', onPress: () => navigation.navigate('Dashboard') }]
+            );
+            return;
+        }
+
         setEditingTask(null);
         setEditHeading('');
         setEditDescription('');
-        setEditDeadline('');
+        setDeadlineDate(new Date());
+        setShowPicker(false);
         setModalAddVisible(true);
     };
 
     const handleSaveTask = async () => {
         try {
-            if (!editHeading.trim() || !editDescription.trim() || !editDeadline.trim()) {
-                Alert.alert('Error', 'All fields are required');
+            if (!editHeading.trim() || !editDescription.trim()) {
+                Alert.alert('Error', 'Heading and description are required');
                 return;
             }
-    
+
             const user = FIREBASE_AUTH.currentUser;
             if (!user) {
                 Alert.alert('Error', 'No user logged in');
                 return;
             }
-    
+
             // Fetch the username from Firestore or use a default value
             let username = 'User';
             try {
@@ -157,23 +237,26 @@ export default function Tasks({ route, navigation }) {
             } catch (error) {
                 console.error('Error fetching username:', error);
             }
-    
+
+            // Format the deadline date
+            const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
+
             const newTask = {
                 userId: isAdminView ? viewingUserId : user.uid,
                 email: user.email,
                 username: username,
                 heading: editHeading.trim(),
                 description: editDescription.trim(),
-                deadline: editDeadline.trim(),
+                deadline: formattedDeadline,
                 date: selectedDate,
                 completed: false,
                 createdAt: new Date().toISOString(),
                 createdBy: isAdminView ? "admin" : user.uid,
             };
-    
+
             const docRef = await addDoc(collection(FIRESTORE_DB, 'tasks'), newTask);
             setTasks([...tasks, { id: docRef.id, ...newTask }]);
-    
+
             Alert.alert('Success', 'Task added successfully');
             setModalAddVisible(false);
         } catch (error) {
@@ -186,7 +269,35 @@ export default function Tasks({ route, navigation }) {
         setEditingTask(task);
         setEditHeading(task.heading);
         setEditDescription(task.description);
-        setEditDeadline(task.deadline);
+
+        // parse the deadline string to a Date object
+        try {
+            // If the deadline is in the format "DD/MM/YYYY - HH:MM AM/PM"
+            const deadlineParts = task.deadline.split(' - ');
+            const datePart = deadlineParts[0].split('/');
+            const timePart = deadlineParts[1].split(' ');
+            const timeValues = timePart[0].split(':');
+
+            const day = parseInt(datePart[0]);
+            const month = parseInt(datePart[1]) - 1; // Month is 0-indexed in JS Date
+            const year = parseInt(datePart[2]);
+            let hours = parseInt(timeValues[0]);
+            const minutes = parseInt(timeValues[1]);
+            const isPM = timePart[1].toUpperCase() === 'PM';
+
+            // Convert 12-hour format to 24-hour format
+            if (isPM && hours < 12) hours += 12;
+            if (!isPM && hours === 12) hours = 0;
+
+            const deadlineDate = new Date(year, month, day, hours, minutes);
+            setDeadlineDate(deadlineDate);
+        } catch (error) {
+            // If parsing fails, use current date
+            console.error('Error parsing deadline date:', error);
+            setDeadlineDate(new Date());
+        }
+
+        setShowPicker(false);
         setModalEditVisible(true);
     };
 
@@ -201,24 +312,23 @@ export default function Tasks({ route, navigation }) {
                 Alert.alert('Error', 'Please enter a task description');
                 return;
             }
-            if (!editDeadline.trim()) {
-                Alert.alert('Error', 'Please enter a deadline');
-                return;
-            }
+
+            // Format the deadline date
+            const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
 
             const taskRef = doc(FIRESTORE_DB, 'tasks', editingTask.id);
             const updateData = {
                 heading: editHeading.trim(),
                 description: editDescription.trim(),
-                deadline: editDeadline.trim(),
+                deadline: formattedDeadline,
                 updatedAt: new Date().toISOString()
             };
 
             await updateDoc(taskRef, updateData);
 
             // Update local state
-            setTasks(tasks.map(task => 
-                task.id === editingTask.id 
+            setTasks(tasks.map(task =>
+                task.id === editingTask.id
                     ? { ...task, ...updateData }
                     : task
             ));
@@ -268,8 +378,8 @@ export default function Tasks({ route, navigation }) {
             });
 
             // Update local state
-            setTasks(tasks.map(task => 
-                task.id === taskId 
+            setTasks(tasks.map(task =>
+                task.id === taskId
                     ? { ...task, completed: !currentStatus }
                     : task
             ));
@@ -289,22 +399,22 @@ export default function Tasks({ route, navigation }) {
 
     const renderTask = ({ item }) => {
         const user = FIREBASE_AUTH.currentUser;
-        const isAdminCreated = item.createdBy === "admin"; 
+        const isAdminCreated = item.createdBy === "admin";
         const isCurrentUserAdmin = isAdminView;
         const isAdminViewUserTasks = isAdminView && viewingUserId !== user?.uid;
+        const isMonthlyView = !selectedDate;
 
         return (
             <View style={styles.taskCard}>
             <View style={styles.taskHeader}>
-
                 {/* admin viewing user tasks, task status (dot) else check-box */}
                 {isAdminViewUserTasks ? (
                     <View style={styles.statusContainer}>
-                        <Icon 
-                            name="circle" 
-                            type="font-awesome" 
-                            size={14} 
-                            color={item.completed ? "green" : "#FFDB58"} 
+                        <Icon
+                            name="circle"
+                            type="font-awesome"
+                            size={14}
+                            color={item.completed ? "green" : "#FFDB58"}
                             style={styles.statusDot}
                         />
                         <Text style={styles.statusText}>
@@ -312,13 +422,13 @@ export default function Tasks({ route, navigation }) {
                         </Text>
                     </View>
                 ) : (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.checkbox}
                         onPress={() => toggleTaskCompletion(item.id, item.completed)}
                     >
-                        <Icon 
-                            name={item.completed ? "check-box" : "check-box-outline-blank"} 
-                            size={18} 
+                        <Icon
+                            name={item.completed ? "check-box" : "check-box-outline-blank"}
+                            size={18}
                             color={item.completed ? "#007AFF" : "#666"}
                         />
                     </TouchableOpacity>
@@ -332,18 +442,26 @@ export default function Tasks({ route, navigation }) {
 
                 <View style={styles.taskActions}>
                     {/* disable edit & delete if task is from Admin for users*/}
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         onPress={() => !item.completed && (isCurrentUserAdmin || !isAdminCreated) && handleEditTask(item)}
-                        disabled={item.completed || (!isCurrentUserAdmin && isAdminCreated)}
+                        disabled={item.completed || (!isCurrentUserAdmin && isAdminCreated) || isMonthlyView}
                     >
-                        <Icon name="edit" size={15} color={(item.completed || (!isCurrentUserAdmin && isAdminCreated)) ? "#ccc" : "#007AFF"} />
+                        <Icon
+                            name="edit"
+                            size={15}
+                            color={(item.completed || (!isCurrentUserAdmin && isAdminCreated) || isMonthlyView) ? "#ccc" : "#007AFF"}
+                        />
                     </TouchableOpacity>
 
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         onPress={() => (isCurrentUserAdmin || !isAdminCreated) && handleDeleteTask(item.id)}
-                        disabled={!isCurrentUserAdmin && isAdminCreated}
+                        disabled={(!isCurrentUserAdmin && isAdminCreated) || isMonthlyView}
                     >
-                        <Icon name="delete" size={15} color={(!isCurrentUserAdmin && isAdminCreated) ? "#ccc" : "#FF3B30"} />
+                        <Icon
+                            name="delete"
+                            size={15}
+                            color={(!isCurrentUserAdmin && isAdminCreated) || isMonthlyView ? "#ccc" : "#FF3B30"}
+                        />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -363,10 +481,107 @@ export default function Tasks({ route, navigation }) {
                 {item.description}
             </Text>
             <Text style={styles.deadline}>Deadline: {item.deadline}</Text>
+
+            {isMonthlyView && (
+                <TouchableOpacity
+                    style={styles.viewTaskButton}
+                    onPress={() => navigation.navigate('Tasks', { date: item.date })}
+                >
+                    <Text style={styles.viewTaskButtonText}>View Details</Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 }
-    
+
+    // Helper function to get selected month name
+    const getSelectedMonthName = () => {
+        const months = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        return months[selectedMonth];
+    };
+
+    // Function to navigate to previous month
+    const goToPreviousMonth = () => {
+        let newMonth = selectedMonth - 1;
+        let newYear = selectedYear;
+
+        if (newMonth < 0) {
+            newMonth = 11; // December
+            newYear -= 1;
+        }
+
+        setSelectedMonth(newMonth);
+        setSelectedYear(newYear);
+        setMonthlyTasksLoaded(false); // Reset to trigger a new fetch
+    };
+
+    // Function to navigate to next month
+    const goToNextMonth = () => {
+        let newMonth = selectedMonth + 1;
+        let newYear = selectedYear;
+
+        if (newMonth > 11) {
+            newMonth = 0; // January
+            newYear += 1;
+        }
+
+        setSelectedMonth(newMonth);
+        setSelectedYear(newYear);
+        setMonthlyTasksLoaded(false); // Reset to trigger a new fetch
+    };
+
+    // Helper function to sort tasks by date
+    const sortTasksByDate = (tasks) => {
+        return [...tasks].sort((a, b) => new Date(a.date) - new Date(b.date));
+    };
+
+    // Render monthly tasks as individual cards
+    const renderMonthlyTasksList = () => {
+
+        return (
+            <View style={styles.monthlyTasksContainer}>
+                <View style={styles.monthSelectorContainer}>
+                    <TouchableOpacity
+                        style={styles.monthNavigationButton}
+                        onPress={goToPreviousMonth}
+                    >
+                        <Icon name="chevron-left" type="feather" size={24} color="#007AFF" />
+                    </TouchableOpacity>
+
+                    <View style={styles.monthYearContainer}>
+                        <Text style={styles.monthTitle}>{getSelectedMonthName()}</Text>
+                        <Text style={styles.yearText}>{selectedYear}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.monthNavigationButton}
+                        onPress={goToNextMonth}
+                    >
+                        <Icon name="chevron-right" type="feather" size={24} color="#007AFF" />
+                    </TouchableOpacity>
+                </View>
+
+                {loading ? (
+                    <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+                ) : (
+                    <FlatList
+                        data={sortTasksByDate(monthlyTasks)}
+                        renderItem={renderTask}
+                        keyExtractor={(item) => item.id}
+                        ListEmptyComponent={() => (
+                            <View style={styles.noTasksContainer}>
+                                <Text style={styles.noTasksText}>No tasks for {getSelectedMonthName()} {selectedYear}</Text>
+                            </View>
+                        )}
+                    />
+                )}
+            </View>
+        );
+    };
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
@@ -378,19 +593,19 @@ export default function Tasks({ route, navigation }) {
 
                 {/* back arrow for admin and users in tasks */}
                 {/* {(isAdminView || viewingUserId === FIREBASE_AUTH.currentUser?.uid) ? (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         onPress={() => {
                             // navigation.navigate(
                             // isAdminView && viewingUserId !== FIREBASE_AUTH.currentUser?.uid
-                            //     ? "Admin" 
-                            //     : "AdminTasks"  
+                            //     ? "Admin"
+                            //     : "AdminTasks"
                             if (isAdminView && viewingUserId !== FIREBASE_AUTH.currentUser?.uid) {
                                 navigation.navigate("Admin"); // Admin when viewing user tasks
                             } else {
                                 navigation.navigate("AdminTasks"); // AdminTasks when viewing own tasks
                             }
                         }}
-                        style={styles.backButton}  
+                        style={styles.backButton}
                     >
                         <Icon name="arrow-left" type="feather" size={20} color="#333" />
                     </TouchableOpacity>
@@ -401,7 +616,7 @@ export default function Tasks({ route, navigation }) {
                 )} */}
 
                 {(isAdminView || userRole === "admin") ? (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={() => {
                                 if (isAdminView && viewingUserId !== FIREBASE_AUTH.currentUser?.uid) {
                                     navigation.navigate("Admin"); // Admin viewing users' tasks → Go to Admin Dashboard
@@ -426,14 +641,48 @@ export default function Tasks({ route, navigation }) {
                     )}
 
                 <Text style={styles.title}>
-                    {isAdminView 
-                        ? `${viewingUsername}'s Tasks - ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
-                        : `Tasks for ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
-                    }
+                    {selectedDate ? (
+                        isAdminView
+                            ? `${viewingUsername}'s Tasks - ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
+                            : `Tasks for ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
+                    ) : (
+                        isAdminView
+                            ? `${viewingUsername}'s Tasks`
+                            : 'Tasks'
+                    )}
                 </Text>
             </View>
+
+            {/* Navigation buttons */}
+            <View style={styles.navigationButtonsContainer}>
+                <TouchableOpacity
+                    style={[styles.navigationButton, selectedDate ? styles.activeNavigationButton : {}]}
+                    onPress={() => navigation.navigate('Dashboard')}
+                >
+                    <Icon name="calendar" type="feather" size={16} color={selectedDate ? "#fff" : "#007AFF"} />
+                    <Text style={[styles.navigationButtonText, selectedDate ? styles.activeNavigationButtonText : {}]}>Select Day</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.navigationButton, !selectedDate ? styles.activeNavigationButton : {}]}
+                    onPress={() => {
+                        // Clear selectedDate to show monthly view
+                        setSelectedDate(null);
+                        // Ensure monthly tasks are loaded
+                        if (!monthlyTasksLoaded) {
+                            fetchMonthlyTasks();
+                        }
+                    }}
+                >
+                    <Icon name="calendar-range" type="material-community" size={16} color={!selectedDate ? "#fff" : "#007AFF"} />
+                    <Text style={[styles.navigationButtonText, !selectedDate ? styles.activeNavigationButtonText : {}]}>Month View</Text>
+                </TouchableOpacity>
+            </View>
+
             {loading ? (
                 <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+            ) : !selectedDate && monthlyTasksLoaded ? (
+                renderMonthlyTasksList()
             ) : tasks.length === 0 ? (
                 <View style={styles.noTasksContainer}>
                     <Text style={styles.noTasksText}>No tasks for this date</Text>
@@ -450,23 +699,29 @@ export default function Tasks({ route, navigation }) {
             <TouchableOpacity style={styles.addButton} onPress={handleAddTask}>
                 <Icon name="add" size={30} color="white" />
             </TouchableOpacity>
-    
+
            {/* add task modal */}
             <Modal
                 animationType="slide"
                 transparent={true}
                 visible={modalAddVisible}
-                onRequestClose={() => setModalAddVisible(false)}
+                onRequestClose={() => {
+                    setModalAddVisible(false);
+                    setShowPicker(false);
+                }}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Add Task for {selectedDate}</Text>
-                            <TouchableOpacity onPress={() => setModalAddVisible(false)}>
+                            <Text style={styles.modalTitle}>Add Task for {format(new Date(selectedDate), 'dd/MM/yyyy')}</Text>
+                            <TouchableOpacity onPress={() => {
+                                setModalAddVisible(false);
+                                setShowPicker(false);
+                            }}>
                                 <Icon name="close" size={20} color="black" />
                             </TouchableOpacity>
                         </View>
-    
+
                         <View style={styles.inputContainer}>
                             <Text style={styles.inputLabel}>Task Heading</Text>
                             <TextInput
@@ -474,7 +729,7 @@ export default function Tasks({ route, navigation }) {
                                 value={editHeading}
                                 onChangeText={setEditHeading}
                             />
-    
+
                             <Text style={styles.inputLabel}>Description</Text>
                             <TextInput
                                 style={[styles.input, styles.textArea]}
@@ -483,17 +738,93 @@ export default function Tasks({ route, navigation }) {
                                 multiline={true}
                                 numberOfLines={4}
                             />
-    
+
                             <Text style={styles.inputLabel}>Deadline</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editDeadline}
-                                onChangeText={setEditDeadline}
-                            />
+                            <View style={styles.dateTimeButtonsContainer}>
+                                <TouchableOpacity
+                                    style={styles.dateTimeButton}
+                                    onPress={() => {
+                                        // Ensure any existing picker is closed first
+                                        setShowPicker(false);
+                                        // Use setTimeout to ensure the previous picker is fully closed
+                                        setTimeout(() => {
+                                            setPickerMode('date');
+                                            setShowPicker(true);
+                                        }, 100);
+                                    }}
+                                >
+                                    <Icon name="calendar" type="feather" size={16} color="#007AFF" />
+                                    <Text style={styles.dateTimeButtonText}>Select Date</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.dateTimeButton}
+                                    onPress={() => {
+                                        // Ensure any existing picker is closed first
+                                        setShowPicker(false);
+                                        // Use setTimeout to ensure the previous picker is fully closed
+                                        setTimeout(() => {
+                                            setPickerMode('time');
+                                            setShowPicker(true);
+                                        }, 100);
+                                    }}
+                                >
+                                    <Icon name="clock" type="feather" size={16} color="#007AFF" />
+                                    <Text style={styles.dateTimeButtonText}>Select Time</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.selectedDeadlineContainer}>
+                                <Text style={styles.selectedDeadlineText}>
+                                    {format(deadlineDate, 'dd/MM/yyyy - hh:mm a')}
+                                </Text>
+                            </View>
+
+                            {showPicker && (
+                                <DateTimePicker
+                                    testID="dateTimePicker"
+                                    value={deadlineDate}
+                                    mode={pickerMode}
+                                    is24Hour={false}
+                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    onChange={(_, selectedDate) => {
+                                        // Always hide the picker on Android after selection
+                                        if (Platform.OS === 'android') {
+                                            setShowPicker(false);
+                                        }
+
+                                        // Update the date if a selection was made
+                                        if (selectedDate) {
+                                            // For iOS, if in date mode, switch to time mode after date selection
+                                            if (Platform.OS === 'ios' && pickerMode === 'date') {
+                                                setPickerMode('time');
+                                                // Create a new date with the selected date but keep current time
+                                                const updatedDate = new Date(selectedDate);
+                                                updatedDate.setHours(deadlineDate.getHours());
+                                                updatedDate.setMinutes(deadlineDate.getMinutes());
+                                                setDeadlineDate(updatedDate);
+                                            }
+                                            // For iOS, if in time mode, hide picker after time selection
+                                            else if (Platform.OS === 'ios' && pickerMode === 'time') {
+                                                setShowPicker(false);
+                                                // Create a new date with the current date but selected time
+                                                const updatedDate = new Date(deadlineDate);
+                                                updatedDate.setHours(selectedDate.getHours());
+                                                updatedDate.setMinutes(selectedDate.getMinutes());
+                                                setDeadlineDate(updatedDate);
+                                            }
+                                            // For Android, update the date directly
+                                            else {
+                                                setDeadlineDate(selectedDate);
+                                            }
+                                        }
+                                    }}
+                                />
+                            )}
                         </View>
-    
-                        <TouchableOpacity 
-                            style={styles.saveButton} 
+
+                        <TouchableOpacity
+                            style={styles.saveButton}
                             onPress={handleSaveTask}
                         >
                             <Text style={styles.saveButtonText}>Save Task</Text>
@@ -507,17 +838,23 @@ export default function Tasks({ route, navigation }) {
                 animationType="slide"
                 transparent={true}
                 visible={modalEditVisible}
-                onRequestClose={() => setModalEditVisible(false)}
+                onRequestClose={() => {
+                    setModalEditVisible(false);
+                    setShowPicker(false);
+                }}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Add Task for {selectedDate}</Text>
-                            <TouchableOpacity onPress={() => setModalEditVisible(false)}>
+                            <Text style={styles.modalTitle}>Edit Task for {format(new Date(selectedDate), 'dd/MM/yyyy')}</Text>
+                            <TouchableOpacity onPress={() => {
+                                setModalEditVisible(false);
+                                setShowPicker(false);
+                            }}>
                                 <Icon name="close" size={20} color="black" />
                             </TouchableOpacity>
                         </View>
-    
+
                         <View style={styles.inputContainer}>
                             <Text style={styles.inputLabel}>Task Heading</Text>
                             <TextInput
@@ -525,7 +862,7 @@ export default function Tasks({ route, navigation }) {
                                 value={editHeading}
                                 onChangeText={setEditHeading}
                             />
-    
+
                             <Text style={styles.inputLabel}>Description</Text>
                             <TextInput
                                 style={[styles.input, styles.textArea]}
@@ -534,17 +871,93 @@ export default function Tasks({ route, navigation }) {
                                 multiline={true}
                                 numberOfLines={4}
                             />
-    
+
                             <Text style={styles.inputLabel}>Deadline</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editDeadline}
-                                onChangeText={setEditDeadline}
-                            />
+                            <View style={styles.dateTimeButtonsContainer}>
+                                <TouchableOpacity
+                                    style={styles.dateTimeButton}
+                                    onPress={() => {
+                                        // Ensure any existing picker is closed first
+                                        setShowPicker(false);
+                                        // Use setTimeout to ensure the previous picker is fully closed
+                                        setTimeout(() => {
+                                            setPickerMode('date');
+                                            setShowPicker(true);
+                                        }, 100);
+                                    }}
+                                >
+                                    <Icon name="calendar" type="feather" size={16} color="#007AFF" />
+                                    <Text style={styles.dateTimeButtonText}>Select Date</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.dateTimeButton}
+                                    onPress={() => {
+                                        // Ensure any existing picker is closed first
+                                        setShowPicker(false);
+                                        // Use setTimeout to ensure the previous picker is fully closed
+                                        setTimeout(() => {
+                                            setPickerMode('time');
+                                            setShowPicker(true);
+                                        }, 100);
+                                    }}
+                                >
+                                    <Icon name="clock" type="feather" size={16} color="#007AFF" />
+                                    <Text style={styles.dateTimeButtonText}>Select Time</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.selectedDeadlineContainer}>
+                                <Text style={styles.selectedDeadlineText}>
+                                    {format(deadlineDate, 'dd/MM/yyyy - hh:mm a')}
+                                </Text>
+                            </View>
+
+                            {showPicker && (
+                                <DateTimePicker
+                                    testID="dateTimePicker"
+                                    value={deadlineDate}
+                                    mode={pickerMode}
+                                    is24Hour={false}
+                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    onChange={(_, selectedDate) => {
+                                        // Always hide the picker on Android after selection
+                                        if (Platform.OS === 'android') {
+                                            setShowPicker(false);
+                                        }
+
+                                        // Update the date if a selection was made
+                                        if (selectedDate) {
+                                            // For iOS, if in date mode, switch to time mode after date selection
+                                            if (Platform.OS === 'ios' && pickerMode === 'date') {
+                                                setPickerMode('time');
+                                                // Create a new date with the selected date but keep current time
+                                                const updatedDate = new Date(selectedDate);
+                                                updatedDate.setHours(deadlineDate.getHours());
+                                                updatedDate.setMinutes(deadlineDate.getMinutes());
+                                                setDeadlineDate(updatedDate);
+                                            }
+                                            // For iOS, if in time mode, hide picker after time selection
+                                            else if (Platform.OS === 'ios' && pickerMode === 'time') {
+                                                setShowPicker(false);
+                                                // Create a new date with the current date but selected time
+                                                const updatedDate = new Date(deadlineDate);
+                                                updatedDate.setHours(selectedDate.getHours());
+                                                updatedDate.setMinutes(selectedDate.getMinutes());
+                                                setDeadlineDate(updatedDate);
+                                            }
+                                            // For Android, update the date directly
+                                            else {
+                                                setDeadlineDate(selectedDate);
+                                            }
+                                        }
+                                    }}
+                                />
+                            )}
                         </View>
-    
-                        <TouchableOpacity 
-                            style={styles.saveButton} 
+
+                        <TouchableOpacity
+                            style={styles.saveButton}
                             onPress={handleUpdateTask}
                         >
                             <Text style={styles.saveButtonText}>Update Task</Text>
@@ -553,7 +966,7 @@ export default function Tasks({ route, navigation }) {
                 </View>
             </Modal>
         </View>
-    );    
+    );
 }
 
 const styles = StyleSheet.create({
@@ -561,22 +974,16 @@ const styles = StyleSheet.create({
         position: "absolute",
         left: 10,
         top: "50%",
-        transform: [ {translateX: -10}], 
+        transform: [ {translateX: -10}],
         padding: 10,
-        zIndex: 10,  
-    },    
+        zIndex: 10,
+    },
     container: {
         flex: 1,
         padding: 16,
         backgroundColor: '#f0f0f0',
         marginTop: 25,
     },
-    // header: {
-    //     flexDirection: 'row',
-    //     alignItems: 'center',
-    //     padding: 20,
-    //     borderRadius: 15,
-    // },
     header: {
         width: '100%',
         height: 50,
@@ -618,7 +1025,7 @@ const styles = StyleSheet.create({
     taskContent: {
         flexDirection: 'row',
         alignItems: 'center',
-    },   
+    },
     heading: {
         fontSize: 18,
         fontWeight: 'bold',
@@ -766,7 +1173,121 @@ const styles = StyleSheet.create({
     },
     statusText: {
         fontSize: 14,
-        fontStyle: 'italic', 
+        fontStyle: 'italic',
         color: '#666',
+    },
+    // Monthly tasks styles
+    monthlyTasksContainer: {
+        flex: 1,
+        width: '100%',
+    },
+    monthTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        textAlign: 'center',
+    },
+    viewTaskButton: {
+        backgroundColor: '#007AFF',
+        padding: 8,
+        borderRadius: 5,
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    viewTaskButtonText: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    // Navigation buttons styles
+    navigationButtonsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 15,
+        paddingHorizontal: 10,
+    },
+    navigationButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f0f0f0',
+        borderWidth: 1,
+        borderColor: '#007AFF',
+        borderRadius: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 15,
+        width: '48%',
+    },
+    activeNavigationButton: {
+        backgroundColor: '#007AFF',
+        borderColor: '#007AFF',
+    },
+    navigationButtonText: {
+        color: '#007AFF',
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 5,
+    },
+    activeNavigationButtonText: {
+        color: 'white',
+    },
+    // Date and time picker styles
+    dateTimeButtonsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    dateTimeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f0f0f0',
+        borderWidth: 1,
+        borderColor: '#007AFF',
+        borderRadius: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        width: '48%',
+    },
+    dateTimeButtonText: {
+        color: '#007AFF',
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 5,
+    },
+    selectedDeadlineContainer: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 15,
+        backgroundColor: '#f9f9f9',
+    },
+    selectedDeadlineText: {
+        fontSize: 16,
+        color: '#333',
+        textAlign: 'center',
+    },
+    // Month selector styles
+    monthSelectorContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+        marginBottom: 8,
+        paddingVertical: 5,
+    },
+    monthNavigationButton: {
+        padding: 8,
+        borderRadius: 16,
+        backgroundColor: '#f0f0f0',
+    },
+    monthYearContainer: {
+        alignItems: 'center',
+    },
+    yearText: {
+        fontSize: 12,
+        color: '#666',
+        marginTop: 3,
     },
 });

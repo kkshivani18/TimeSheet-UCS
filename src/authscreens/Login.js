@@ -115,7 +115,7 @@ export default function Login({ navigation }) {
                 source={require('../../images/UCS logo.png')}
                 style={styles.logo}
             />
-            <Text style={styles.title}>Sign In</Text>
+            <Text style={styles.title}>Login</Text>
 
             {message ? (
                 <View style={[styles.messageBox, messageType === 'success' ? styles.successBox : styles.errorBox]}>
