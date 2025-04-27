@@ -632,7 +632,7 @@ export default function Tasks({ route, navigation }) {
                             }}
                             style={styles.backButton}
                         >
-                            <Icon name="arrow-left" type="feather" size={20} color="#333" />
+                            <Icon name="arrow-left" type="feather" size={18} color="#333" />
                         </TouchableOpacity>
                     ) : showMenu && (
                         <TouchableOpacity onPress={() => navigation.openDrawer()}>
@@ -972,11 +972,13 @@ export default function Tasks({ route, navigation }) {
 const styles = StyleSheet.create({
     backButton: {
         position: "absolute",
-        left: 10,
+        left: 5,
         top: "50%",
         transform: [ {translateX: -10}],
         padding: 10,
         zIndex: 10,
+        marginTop: -18
+
     },
     container: {
         flex: 1,

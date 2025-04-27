@@ -4,10 +4,12 @@ import { Calendar } from 'react-native-calendars';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, addDoc, serverTimestamp, getDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDoc, doc, setDoc, updateDoc, getDocs, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
+// import { minTime } from 'date-fns/constants';
+// import Calendar from "react-native-calendar-range-picker";
 
 const months = [
     { label: 'January', value: 1 },
@@ -43,6 +45,7 @@ export default function Dashboard({ navigation }) {
     const [attendanceId, setAttendanceId] = useState(null);
     const [isCheckInDisabled, setIsCheckInDisabled] = useState(false);
     const [isCheckOutDisabled, setIsCheckOutDisabled] = useState(true);
+    const [taskCountsByDate, setTaskCountsByDate] = useState({});
 
     const user = FIREBASE_AUTH.currentUser;
 
@@ -162,19 +165,57 @@ export default function Dashboard({ navigation }) {
         setSelectedYear(itemValue);
     };
 
-    const getCurrentMonthDays = () => {
-        const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-        const markedDates = {};
-        for (let day = 1; day <= daysInMonth; day++) {
-            const date = new Date(selectedYear, selectedMonth - 1, day).toISOString().split('T')[0];
-            markedDates[date] = { marked: false }; // have to customize more
-        }
-        return markedDates;
-    };
+    // State to store leave data
+    const [leaveData, setLeaveData] = useState({});
 
-    const handleDayPress = (day) => {
-        setSelectedDate(day.dateString);
-        setModalVisible(true);
+    // Fetch leave data when month or year changes
+    useEffect(() => {
+        const fetchLeaveData = async () => {
+            // Get data from Firestore
+            const data = await fetchLeaveRequest();
+            console.log("Leave data fetched:", data);
+
+            // Add hardcoded date range from April 28 to May 2
+            const startDate = new Date(2024, 3, 28); // April 28, 2024 (months are 0-indexed)
+            const endDate = new Date(2024, 4, 2);    // May 2, 2024
+
+            // Mark all days in the range
+            const currentDate = new Date(startDate);
+            while (currentDate <= endDate) {
+                const dateStr = currentDate.toISOString().split('T')[0];
+
+                // Add the date to the leave data
+                data[dateStr] = {
+                    leaveType: 'fullDay',
+                    status: 'leave'
+                };
+
+                // Move to next day
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            setLeaveData(data);
+        };
+
+        fetchLeaveData();
+    }, [selectedMonth, selectedYear]);
+
+    const getCurrentMonthDays = () => {
+        const markedDates = {};
+
+        // Loop over the leaveData and set the marked color
+        Object.keys(leaveData).forEach(date => {
+            markedDates[date] = {
+                selected: true,
+                selectedColor: '#DC143C', // crimson color for leave
+                startingDay: true,
+                endingDay: true,
+                color: '#DC143C',
+                textColor: 'white',
+        };
+    });
+
+    return markedDates;
     };
 
     const handleSaveTask = async () => {
@@ -335,6 +376,59 @@ export default function Dashboard({ navigation }) {
         }
     };
 
+    const fetchLeaveRequest = async () => {
+        if(!user) return {};
+
+        try {
+            console.log("Fetching leave requests for user:", user.uid);
+
+            const leaveQuery = query(
+                collection(FIRESTORE_DB, 'leaveRequests'),
+                where('userId', '==', user.uid),
+                where('status', '==', 'Approved')
+            );
+
+            const querySnapshot = await getDocs(leaveQuery);
+            console.log("Leave requests found:", querySnapshot.size);
+
+            const leaveData = {};
+
+            // processing each leave request
+            querySnapshot.forEach(doc => {
+                console.log("Processing leave request:", doc.id);
+                const leave = doc.data();
+                console.log("Leave data:", leave);
+
+                const startDate = new Date(leave.startDate);
+                const endDate = new Date(leave.endDate);
+
+                console.log("Start date:", startDate);
+                console.log("End date:", endDate);
+
+                // Mark all days in the leave period
+                const currentDate = new Date(startDate);
+                while (currentDate <= endDate) {
+                    const dateStr = currentDate.toISOString().split('T')[0];
+                    console.log("Adding leave day:", dateStr);
+
+                    leaveData[dateStr] = {
+                        leaveType: leave.leaveType,
+                        status: 'leave'
+                    };
+
+                    // Move to next day
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+            });
+
+            console.log("Final leave data:", leaveData);
+            return leaveData;
+        } catch (error) {
+            console.error('Error fetching leave requests:', error);
+            return {};
+        }
+    }
+
     const handleLogout = () => {
         FIREBASE_AUTH.signOut()
             .then(() => {
@@ -410,8 +504,9 @@ export default function Dashboard({ navigation }) {
             </View>
 
             {/* calendar */}
+
             <View style={styles.card}>
-                <Calendar
+                {/* <Calendar
                     key={`${selectedYear}-${selectedMonth}`}
                     style={styles.calendar}
                     hideArrows={true}
@@ -458,8 +553,56 @@ export default function Dashboard({ navigation }) {
                             ]
                         );
                     }}
+                /> */}
+
+                <Calendar
+                    key={`${selectedYear}-${selectedMonth}`}
+                    style={styles.calendar}
+                    hideArrows={true}
+                    theme={{
+                        calendarBackground: 'white',
+                        textSectionTitleColor: '#b6c1cd',
+                        selectedDayBackgroundColor: '#00adf5',
+                        selectedDayTextColor: '#ffffff',
+                        todayTextColor: '#00adf5',
+                        dayTextColor: '#2d4150',
+                        textDisabledColor: '#d9e1e8',
+                        dotColor: '#00adf5',
+                        selectedDotColor: '#ffffff',
+                        arrowColor: 'orange',
+                        monthTextColor: 'black',
+                        indicatorColor: 'black',
+                        textDayFontWeight: '300',
+                        textMonthFontWeight: 'bold',
+                        textDayHeaderFontWeight: '300',
+                        textDayFontSize: 16,
+                        textMonthFontSize: 16,
+                        textDayHeaderFontSize: 14,
+                    }}
+                    markedDates={getCurrentMonthDays()} // <-- now it's dynamic
+                    current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`}
+                    onDayPress={(day) => {
+                        setSelectedDate(day.dateString);
+                        Alert.alert(
+                            'Select Option',
+                            `What would you like to do for ${day.dateString}?`,
+                            [
+                                { text: 'Add Task', onPress: () => setModalVisible(true) },
+                                { text: 'View Tasks', onPress: () => viewTasksForDate(day.dateString) },
+                                { text: 'Cancel', style: 'cancel' }
+                            ]
+                        );
+                    }}
                 />
             </View>
+
+            {/* <View style={{ flex: 1 }}>
+              <Calendar
+                startDate="2024-03-05"
+                endDate="2024-03-12"
+                onChange={({ startDate, endDate }) => console.log({ startDate, endDate })}
+              />
+            </View>; */}
 
             <Modal
                 animationType="slide"
