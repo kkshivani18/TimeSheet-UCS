@@ -475,13 +475,14 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, FlatList } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, FlatList, Modal } from 'react-native';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot,doc,getDoc} from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Picker } from '@react-native-picker/picker';
 
 export default function LeaveApplication({ navigation }) {
     const [leaveReason, setLeaveReason] = useState('');
@@ -490,7 +491,11 @@ export default function LeaveApplication({ navigation }) {
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
     const [leaveApplications, setLeaveApplications] = useState([]);
+    const [filteredApplications, setFilteredApplications] = useState([]);
     const [userRole, setUserRole] = useState('user');
+    const [filterModalVisible, setFilterModalVisible] = useState(false);
+    const [selectedFilter, setSelectedFilter] = useState('all');
+    const [isFiltered, setIsFiltered] = useState(false);
 
     useEffect(() => {
         // Fetch current user's role
@@ -516,7 +521,7 @@ export default function LeaveApplication({ navigation }) {
         fetchUserRole();
 
         const q = query(
-            collection(FIRESTORE_DB, 'leaveRequests'), 
+            collection(FIRESTORE_DB, 'leaveRequests'),
             where('userId', '==', user.uid)
         );
 
@@ -555,7 +560,7 @@ export default function LeaveApplication({ navigation }) {
             setStartDate(selectedDate);
         }
     };
-    
+
     const handleEndDateChange = (event, selectedDate) => {
         setShowEndPicker(false);
         if (selectedDate) {
@@ -597,7 +602,7 @@ export default function LeaveApplication({ navigation }) {
         // Prepare leave request
         const leaveRequest = {
             userId: user.uid,
-            userEmail: user.email, 
+            userEmail: user.email,
             username: username,
             reason: leaveReason,
             startDate: formatDate(startDate),
@@ -610,7 +615,7 @@ export default function LeaveApplication({ navigation }) {
         try {
             // Add to leave requests collection
             await addDoc(
-                collection(FIRESTORE_DB, 'leaveRequests'), 
+                collection(FIRESTORE_DB, 'leaveRequests'),
                 leaveRequest
             );
 
@@ -647,7 +652,7 @@ export default function LeaveApplication({ navigation }) {
         FIREBASE_AUTH.signOut()
             .then(() => {
                     console.log('User logged out');
-                    navigation.navigate('Login'); 
+                    navigation.navigate('Login');
                 })
                 .catch((error) => {
                     console.error('Error logging out:', error);
@@ -661,11 +666,11 @@ export default function LeaveApplication({ navigation }) {
                 <Text style={styles.leaveApplicationDates}>
                     {item.startDate} to {item.endDate}
                 </Text>
-                <View 
+                <View
                     style={[
-                        styles.statusDot, 
+                        styles.statusDot,
                         { backgroundColor: getStatusColor(item.status) }
-                    ]} 
+                    ]}
                 />
             </View>
             <Text style={styles.leaveApplicationReason}>
@@ -682,7 +687,7 @@ export default function LeaveApplication({ navigation }) {
         </View>
     );
 
-    
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
@@ -694,13 +699,13 @@ export default function LeaveApplication({ navigation }) {
                     <Icon name="logout" size={22} color="#333" />
                 </TouchableOpacity>
             </View>
-            
+
             {userRole === 'user' && (
-                <View style={styles.datePickerContainer}>
+                <View>
                     <View style={styles.dateContainer}>
-                        <Text>Start Date:</Text>
-                        <TouchableOpacity 
-                            style={styles.datePickerButton} 
+                        <Text style={{fontWeight: 'bold'}}>Start Date:</Text>
+                        <TouchableOpacity
+                            style={styles.datePickerButton}
                             onPress={() => setShowStartPicker(true)}
                         >
                             <Text>{formatDate(startDate)}</Text>
@@ -709,9 +714,9 @@ export default function LeaveApplication({ navigation }) {
                     </View>
 
                     <View style={styles.dateContainer}>
-                        <Text>End Date:</Text>
-                        <TouchableOpacity 
-                            style={styles.datePickerButton} 
+                        <Text style={{fontWeight: 'bold'}}>End Date:</Text>
+                        <TouchableOpacity
+                            style={styles.datePickerButton}
                             onPress={() => setShowEndPicker(true)}
                         >
                             <Text>{formatDate(endDate)}</Text>
@@ -726,14 +731,14 @@ export default function LeaveApplication({ navigation }) {
                         onChangeText={setLeaveReason}
                         multiline
                     />
-
-                    <TouchableOpacity 
-                        style={styles.submitButton} 
+                    
+                    <TouchableOpacity
+                        style={styles.submitButton}
                         onPress={handleSubmit}
                     >
                         <Text style={styles.buttonText}>Submit Leave Request</Text>
                     </TouchableOpacity>
-                </View>
+            </View>
             )}
 
             {/* DatePicker modals rendered outside the view hierarchy */}
@@ -780,9 +785,18 @@ export default function LeaveApplication({ navigation }) {
             )}
 
             <View style={styles.leaveApplicationsContainer}>
-                <Text style={styles.leaveApplicationsTitle}>Previous Leave Applications</Text>
+                <View style={styles.leaveApplicationsHeader}>
+                    <Text style={styles.leaveApplicationsTitle}>Previous Leave Applications</Text>
+                    <TouchableOpacity
+                        style={styles.filterButton}
+                        onPress={() => setFilterModalVisible(true)}
+                    >
+                        <Text style={styles.filterButtonText}>Filter</Text>
+                    </TouchableOpacity>
+                </View>
+
                 <FlatList
-                    data={leaveApplications}
+                    data={isFiltered ? filteredApplications : leaveApplications}
                     renderItem={renderLeaveApplication}
                     keyExtractor={(item) => item.id}
                     ListEmptyComponent={
@@ -791,6 +805,61 @@ export default function LeaveApplication({ navigation }) {
                         </Text>
                     }
                 />
+
+                {/* Filter Modal */}
+                <Modal
+                    animationType="slide"
+                    transparent={true}
+                    visible={filterModalVisible}
+                    onRequestClose={() => setFilterModalVisible(false)}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                            <Text style={styles.modalTitle}>Filter by Status</Text>
+
+                            <View style={styles.pickerContainer}>
+                                <Picker
+                                    selectedValue={selectedFilter}
+                                    style={styles.picker}
+                                    onValueChange={(itemValue) => setSelectedFilter(itemValue)}
+                                >
+                                    <Picker.Item label="All" value="all" />
+                                    <Picker.Item label="Approved" value="approved" />
+                                    <Picker.Item label="Disapproved" value="disapproved" />
+                                    <Picker.Item label="On Hold" value="on hold" />
+                                    <Picker.Item label="Pending" value="pending" />
+                                </Picker>
+                            </View>
+
+                            <View style={styles.modalButtonsContainer}>
+                                <TouchableOpacity
+                                    style={[styles.modalButton, styles.applyButton]}
+                                    onPress={() => {
+                                        if (selectedFilter === 'all') {
+                                            setIsFiltered(false);
+                                        } else {
+                                            const filtered = leaveApplications.filter(
+                                                app => app.status.toLowerCase() === selectedFilter.toLowerCase()
+                                            );
+                                            setFilteredApplications(filtered);
+                                            setIsFiltered(true);
+                                        }
+                                        setFilterModalVisible(false);
+                                    }}
+                                >
+                                    <Text style={styles.modalButtonText}>Apply</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[styles.modalButton, styles.cancelButton]}
+                                    onPress={() => setFilterModalVisible(false)}
+                                >
+                                    <Text style={styles.modalButtonText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
             </View>
         </View>
     );
@@ -818,6 +887,22 @@ const styles = StyleSheet.create({
         fontSize: 19,
         fontWeight: 'bold',
     },
+    leaveApplicationsHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    filterButton: {
+        backgroundColor: '#007AFF',
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 5,
+    },
+    filterButtonText: {
+        color: 'white',
+        fontWeight: '500',
+    },
     datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -831,7 +916,7 @@ const styles = StyleSheet.create({
     width: 150,
     },
     dateContainer: {
-        flexDirection: 'row', 
+        flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 10,
@@ -839,27 +924,27 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderRadius: 5,
     },
-    input: { 
-        // borderWidth: 1, 
-        padding: 10, 
-        marginBottom: 10, 
+    input: {
+        // borderWidth: 1,
+        padding: 10,
+        marginBottom: 10,
         borderRadius: 5,
         backgroundColor: 'white',
     },
-    textArea: { 
-        height: 80, 
-        textAlignVertical: 'top' 
+    textArea: {
+        height: 80,
+        textAlignVertical: 'top'
     },
-    submitButton: { 
-        backgroundColor: '#007AFF', 
-        padding: 10, 
-        borderRadius: 5, 
+    submitButton: {
+        backgroundColor: '#007AFF',
+        padding: 10,
+        borderRadius: 5,
         alignItems: 'center',
         marginBottom: 15,
     },
-    buttonText: { 
-        color: 'white', 
-        fontSize: 16 
+    buttonText: {
+        color: 'white',
+        fontSize: 16
     },
     leaveApplicationsContainer: {
         flex: 1,
@@ -909,5 +994,76 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: 'gray',
         marginTop: 20,
+    },
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContent: {
+        width: '80%',
+        backgroundColor: 'white',
+        borderRadius: 10,
+        padding: 20,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 15,
+    },
+    pickerContainer: {
+        width: '100%',
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 5,
+        marginBottom: 15,
+    },
+    picker: {
+        width: '100%',
+        height: 52,
+    },
+    modalButtonsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+    },
+    modalButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 5,
+        minWidth: 100,
+        alignItems: 'center',
+    },
+    applyButton: {
+        backgroundColor: 'green',
+    },
+    cancelButton: {
+        backgroundColor: '#DC143C',
+    },
+    modalButtonText: {
+        color: 'white',
+        fontWeight: '400',
+    },
+    datePickerContainer: {
+        backgroundColor: '#fff',
+        padding: 5,
+        borderRadius: 10,
+        marginBottom: 15,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     }
 });

@@ -11,6 +11,8 @@ import DrawerNavigator from './src/navigation/DrawerNavigation';
 import Admin from './src/components/Admin';
 import AdminNavigator from './src/navigation/AdminNavigation';
 import AdminTasks from './src/components/AdminTasks';
+import AdminAttendance from './src/components/AdminAttendance';
+import Attendance from './src/screens/Attendance';
 
 const Stack = createStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -27,13 +29,13 @@ const HeaderTitle = () => (
 export default function App() {
 
   useEffect(() => {
-    const backAction = () => true; 
-  
+    const backAction = () => true;
+
     const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
-  
-    return () => backHandler.remove(); 
+
+    return () => backHandler.remove();
   }, []);
-  
+
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Login">
@@ -74,25 +76,41 @@ export default function App() {
           name="Tasks"
           component={Tasks}
           options={{
-            headerShown: false, 
+            headerShown: false,
             gestureEnabled: false,
           }}
         />
-        <Stack.Screen 
-              name="Admin" 
+        <Stack.Screen
+              name="Admin"
               component={AdminNavigator}
               options={{
                   headerShown: false,
                   gestureEnabled: false,
-              }} 
+              }}
         />
-        <Stack.Screen 
-              name="AdminTasks" 
+        <Stack.Screen
+              name="AdminTasks"
               component={AdminTasks}
               options={{
                   headerShown: false,
                   gestureEnabled: false,
-              }} 
+              }}
+        />
+        <Stack.Screen
+              name="Attendance"
+              component={Attendance}
+              options={{
+                  headerShown: false,
+                  gestureEnabled: false,
+              }}
+        />
+        <Stack.Screen
+              name="AdminAttendance"
+              component={AdminAttendance}
+              options={{
+                  headerShown: false,
+                  gestureEnabled: false,
+              }}
         />
       </Stack.Navigator>
     </NavigationContainer>

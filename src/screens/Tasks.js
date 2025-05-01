@@ -200,8 +200,20 @@ export default function Tasks({ route, navigation }) {
         if (!selectedDate) {
             Alert.alert(
                 'Select a Date',
-                'Select a date from the Dashboard calendar, to add a task.',
-                [{ text: 'OK', onPress: () => navigation.navigate('Dashboard') }]
+                'Select a date from the calendar to add a task.',
+                [{
+                    text: 'OK',
+                    onPress: () => {
+                        // Navigate to the appropriate dashboard based on user role
+                        if (isAdminView) {
+                            navigation.navigate('Admin');
+                        } else if (userRole === 'admin') {
+                            navigation.navigate('AdminTasks');
+                        } else {
+                            navigation.navigate('Dashboard');
+                        }
+                    }
+                }]
             );
             return;
         }
@@ -485,7 +497,19 @@ export default function Tasks({ route, navigation }) {
             {isMonthlyView && (
                 <TouchableOpacity
                     style={styles.viewTaskButton}
-                    onPress={() => navigation.navigate('Tasks', { date: item.date })}
+                    onPress={() => {
+                        // Pass along all the necessary information for proper navigation
+                        const navigationParams = {
+                            date: item.date,
+                            // If this is an admin view, pass the user information
+                            ...(isAdminView && {
+                                isAdminView: true,
+                                userId: viewingUserId,
+                                username: viewingUsername
+                            })
+                        };
+                        navigation.navigate('Tasks', navigationParams);
+                    }}
                 >
                     <Text style={styles.viewTaskButtonText}>View Details</Text>
                 </TouchableOpacity>
@@ -657,7 +681,24 @@ export default function Tasks({ route, navigation }) {
             <View style={styles.navigationButtonsContainer}>
                 <TouchableOpacity
                     style={[styles.navigationButton, selectedDate ? styles.activeNavigationButton : {}]}
-                    onPress={() => navigation.navigate('Dashboard')}
+                    onPress={() => {
+                        // Check admin view and navigate accordingly
+
+                        if (isAdminView) {
+                            // admin viewing a user's tasks, go to Admin dashboard
+                            navigation.navigate('Admin');
+                        }
+
+                        else if (userRole === 'admin') {
+                          // admin is viewing own tasks (ideally should go to AdminTasks but giving the navigation.openDrawer error) - (temp fix)
+                            navigation.navigate('Admin');
+                        }
+
+                        else if(userRole !== 'admin') {
+                            // Regular user goes to Dashboard
+                            navigation.navigate('Dashboard');
+                        }
+                    }}
                 >
                     <Icon name="calendar" type="feather" size={16} color={selectedDate ? "#fff" : "#007AFF"} />
                     <Text style={[styles.navigationButtonText, selectedDate ? styles.activeNavigationButtonText : {}]}>Select Day</Text>

@@ -3,6 +3,7 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import Admin from '../components/Admin';
 import AdminTasks from '../components/AdminTasks';
 import AdminLeave from '../components/AdminLeave';
+import AdminAttendance from '../components/AdminAttendance';
 import { Icon } from 'react-native-elements';
 
 const AdminDrawer = createDrawerNavigator();
@@ -20,7 +21,7 @@ export default function AdminNavigator() {
             }}
         >
             <AdminDrawer.Screen
-                name="Admin" 
+                name="Admin"
                 component={Admin}
                 options={{
                     drawerLabel: 'View Tasks',
@@ -30,7 +31,7 @@ export default function AdminNavigator() {
                 }}
             />
             <AdminDrawer.Screen
-                name="AdminTasks" 
+                name="AdminTasks"
                 component={AdminTasks}
                 options={{
                     drawerLabel: 'Manage Tasks',
@@ -46,6 +47,16 @@ export default function AdminNavigator() {
                     drawerLabel: 'Leave Requests',
                     drawerIcon: ({color}) => (
                         <Icon name="assignment" size={20} color={color} />
+                    )
+                }}
+            />
+            <AdminDrawer.Screen
+                name="AdminAttendance"
+                component={AdminAttendance}
+                options={{
+                    drawerLabel: 'Attendance Management',
+                    drawerIcon: ({color}) => (
+                        <Icon name="access-time" size={20} color={color} />
                     )
                 }}
             />

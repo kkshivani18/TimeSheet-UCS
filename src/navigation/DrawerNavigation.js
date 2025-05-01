@@ -3,13 +3,14 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import Dashboard from '../screens/Dashboard';
 import Tasks from '../screens/Tasks';
 import LeaveApplication from '../screens/LeaveApplication';
+import Attendance from '../screens/Attendance';
 import { Icon } from 'react-native-elements';
 
 const Drawer = createDrawerNavigator();
 
 export default function DrawerNavigator() {
     return (
-        <Drawer.Navigator 
+        <Drawer.Navigator
             initialRouteName="Dashboard"
             screenOptions={{
                 headerShown: false,
@@ -19,8 +20,8 @@ export default function DrawerNavigator() {
                 }
             }}
         >
-            <Drawer.Screen 
-                name="Dashboard" 
+            <Drawer.Screen
+                name="Dashboard"
                 component={Dashboard}
                 options={{
                     drawerLabel: 'Dashboard',
@@ -29,8 +30,8 @@ export default function DrawerNavigator() {
                     )
                 }}
             />
-            <Drawer.Screen 
-                name="Tasks" 
+            <Drawer.Screen
+                name="Tasks"
                 component={Tasks}
                 options={{
                     drawerLabel: 'Tasks',
@@ -45,6 +46,14 @@ export default function DrawerNavigator() {
                 options={{
                     drawerLabel: 'Apply Leave',
                     drawerIcon: ({color}) => <Icon name="event" size={20} color={color} />
+                }}
+            />
+            <Drawer.Screen
+                name="Attendance"
+                component={Attendance}
+                options={{
+                    drawerLabel: 'Attendance',
+                    drawerIcon: ({color}) => <Icon name="access-time" size={20} color={color} />
                 }}
             />
         </Drawer.Navigator>

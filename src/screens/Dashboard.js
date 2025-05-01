@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, Pressable, ScrollView,  Platform } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, ScrollView, Platform } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, addDoc, serverTimestamp, getDoc, doc, setDoc, updateDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDoc, doc, getDocs, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -38,13 +38,6 @@ export default function Dashboard({ navigation }) {
     const [showPicker, setShowPicker] = useState(false);
     const [pickerMode, setPickerMode] = useState('date');
     const [username, setUsername] = useState('');
-    const [checkInTime, setCheckInTime] = useState(null);
-    const [checkOutTime, setCheckOutTime] = useState(null);
-    const [workedHours, setWorkedHours] = useState(null);
-    const [totalWorkedMinutes, setTotalWorkedMinutes] = useState(0);
-    const [attendanceId, setAttendanceId] = useState(null);
-    const [isCheckInDisabled, setIsCheckInDisabled] = useState(false);
-    const [isCheckOutDisabled, setIsCheckOutDisabled] = useState(true);
     const [taskCountsByDate, setTaskCountsByDate] = useState({});
 
     const user = FIREBASE_AUTH.currentUser;
@@ -67,95 +60,7 @@ export default function Dashboard({ navigation }) {
         fetchUserData();
     }, []);
 
-    useEffect(() => {
-        fetchAttendance();
-    }, []);
-
-    // Fetch attendance data
-    // const fetchAttendance = async () => {
-    //     if (!user) return;
-
-    //     try {
-    //         const docRef = doc(FIRESTORE_DB, 'attendance', user.uid);
-    //         const docSnap = await getDoc(docRef);
-
-    //         if (docSnap.exists()) {
-    //             const data = docSnap.data();
-    //             setCheckInTime(data.checkInTime);
-    //             setCheckOutTime(data.checkOutTime);
-    //             setWorkedHours(data.workedHours);
-
-    //             // Disable/Enable Buttons Based on Data
-    //             if (data.checkInTime && !data.checkOutTime) {
-    //                 setIsCheckInDisabled(true);
-    //                 setIsCheckOutDisabled(false);
-    //             } else {
-    //                 setIsCheckInDisabled(false);
-    //                 setIsCheckOutDisabled(true);
-    //             }
-    //         } else {
-    //             console.log("No attendance record found, creating new one.");
-    //             setIsCheckInDisabled(false);
-    //             setIsCheckOutDisabled(true);
-    //         }
-    //     } catch (error) {
-    //         console.error("Error fetching attendance:", error);
-    //     }
-    // };
-
-    const fetchAttendance = async () => {
-        if (!user) return;
-
-        try {
-            const docRef = doc(FIRESTORE_DB, 'attendance', user.uid);
-            const docSnap = await getDoc(docRef);
-
-            const todayDate = new Date().toLocaleDateString();
-
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-
-                // If it's a new day, reset everything
-                if (data.date !== todayDate) {
-                    await updateDoc(docRef, {
-                        checkInTime: null,
-                        checkOutTime: null,
-                        workedHours: '',
-                        totalWorkedMinutes: 0,
-                        date: todayDate,
-                        timestamp: serverTimestamp(),
-                    });
-                    setCheckInTime(null);
-                    setCheckOutTime(null);
-                    setWorkedHours('');
-                    setTotalWorkedMinutes(0);
-                    setIsCheckInDisabled(false);
-                    setIsCheckOutDisabled(true);
-                } else {
-                    setCheckInTime(data.checkInTime);
-                    setCheckOutTime(data.checkOutTime);
-                    setWorkedHours(data.workedHours);
-                    setTotalWorkedMinutes(data.totalWorkedMinutes || 0);
-
-                    // Disable/Enable Buttons
-                    if (data.checkInTime) {
-                        setIsCheckInDisabled(true);
-                        // Always enable check-out if checked in
-                        setIsCheckOutDisabled(false);
-                    } else {
-                        setIsCheckInDisabled(false);
-                        setIsCheckOutDisabled(true);
-                    }
-                }
-            } else {
-                console.log("No attendance record found, creating new one.");
-                setIsCheckInDisabled(false);
-                setIsCheckOutDisabled(true);
-            }
-        } catch (error) {
-            console.error("Error fetching attendance:", error);
-        }
-    };
+    // No need to fetch attendance data here anymore as it's moved to Attendance screen
 
     const handleMonthChange = (itemValue) => {
         setSelectedMonth(itemValue);
@@ -165,15 +70,15 @@ export default function Dashboard({ navigation }) {
         setSelectedYear(itemValue);
     };
 
-    // State to store leave data
+    // State to store leave data and attendance data
     const [leaveData, setLeaveData] = useState({});
+    const [attendanceData, setAttendanceData] = useState({});
 
-    // Fetch leave data when month or year changes
+    // Fetch leave and attendance data when month or year changes
     useEffect(() => {
-        const fetchLeaveData = async () => {
-            // Get data from Firestore
-            const data = await fetchLeaveRequest();
-            console.log("Leave data fetched:", data);
+        const fetchData = async () => {
+            // Get leave data from Firestore
+            const leaveDataResult = await fetchLeaveRequest();
 
             // Add hardcoded date range from April 28 to May 2
             const startDate = new Date(2024, 3, 28); // April 28, 2024 (months are 0-indexed)
@@ -185,7 +90,7 @@ export default function Dashboard({ navigation }) {
                 const dateStr = currentDate.toISOString().split('T')[0];
 
                 // Add the date to the leave data
-                data[dateStr] = {
+                leaveDataResult[dateStr] = {
                     leaveType: 'fullDay',
                     status: 'leave'
                 };
@@ -194,28 +99,184 @@ export default function Dashboard({ navigation }) {
                 currentDate.setDate(currentDate.getDate() + 1);
             }
 
-            setLeaveData(data);
+            setLeaveData(leaveDataResult);
+
+            // Get attendance data from Firestore
+            const attendanceDataResult = await fetchAttendanceData();
+            setAttendanceData(attendanceDataResult);
         };
 
-        fetchLeaveData();
+        fetchData();
     }, [selectedMonth, selectedYear]);
+
+    // Function to fetch attendance data
+    const fetchAttendanceData = async () => {
+        if (!user) return {};
+
+        try {
+            // Minimal debug info
+            console.log(`Fetching attendance for: ${user.email} (Month: ${selectedMonth}/${selectedYear})`);
+
+            // Query all attendance documents for this user in the selected month
+            const attendanceQuery = query(
+                collection(FIRESTORE_DB, 'attendance'),
+                where('userId', '==', user.uid)
+            );
+
+            const querySnapshot = await getDocs(attendanceQuery);
+            console.log(`Found ${querySnapshot.size} attendance records`);
+
+            const attendanceData = {};
+
+            // Process each attendance record
+            querySnapshot.forEach(doc => {
+                const attendance = doc.data();
+
+                // Skip if no check-in or check-out time
+                if (!attendance.checkInTime || !attendance.checkOutTime) return;
+
+                // Get the date string in YYYY-MM-DD format for the calendar
+                // Handle different date formats (MM/DD/YYYY or DD/MM/YYYY)
+                let attendanceDate;
+                if (attendance.date.includes('/')) {
+                    // Split the date string and create a date object
+                    const dateParts = attendance.date.split('/');
+                    // Assuming date format is MM/DD/YYYY in US locale or DD/MM/YYYY in other locales
+                    // We'll try to handle both formats
+                    if (dateParts.length === 3) {
+                        // Check if first part is likely a month (1-12) or day (1-31)
+                        const firstPart = parseInt(dateParts[0]);
+                        if (firstPart > 12) {
+                            // Likely DD/MM/YYYY format
+                            attendanceDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+                        } else {
+                            // Likely MM/DD/YYYY format
+                            attendanceDate = new Date(dateParts[2], dateParts[0] - 1, dateParts[1]);
+                        }
+                    }
+                } else {
+                    // Try to parse as ISO date
+                    attendanceDate = new Date(attendance.date);
+                }
+
+                // Ensure we have a valid date
+                if (!attendanceDate || isNaN(attendanceDate.getTime())) {
+                    console.log("Invalid date format:", attendance.date);
+                    return;
+                }
+
+                const dateStr = attendanceDate.toISOString().split('T')[0];
+
+                // Check if the date is in the selected month
+                const attendanceMonth = attendanceDate.getMonth() + 1;
+                const attendanceYear = attendanceDate.getFullYear();
+                if (attendanceMonth !== selectedMonth || attendanceYear !== selectedYear) return;
+
+                // Calculate worked hours
+                let workedHours = 0;
+
+                // First try to use totalWorkedMinutes if available
+                if (attendance.totalWorkedMinutes) {
+                    workedHours = attendance.totalWorkedMinutes / 60;
+                }
+                // Otherwise calculate from check-in and check-out times
+                else if (attendance.checkInTime && attendance.checkOutTime) {
+                    const checkInTime = new Date(attendance.checkInTime);
+                    const checkOutTime = new Date(attendance.checkOutTime);
+
+                    // Calculate difference in milliseconds
+                    const diffMs = checkOutTime - checkInTime;
+
+                    // Convert to hours
+                    workedHours = diffMs / (1000 * 60 * 60);
+                }
+
+                // Store the totalWorkedMinutes for this day - ensure it's a number
+                let minutes;
+
+                if (attendance.totalWorkedMinutes !== undefined && attendance.totalWorkedMinutes !== null) {
+                    // Convert to number to ensure proper type
+                    minutes = Number(attendance.totalWorkedMinutes);
+                } else {
+                    // Calculate from worked hours
+                    minutes = Math.floor(workedHours * 60);
+                }
+
+                // Validate that minutes is a valid number
+                if (isNaN(minutes)) {
+                    minutes = 0;
+                }
+
+                // filter for 8+ hours (480+ minutes) in getCurrentMonthDays
+                attendanceData[dateStr] = {
+                    workedHours: workedHours,
+                    totalWorkedMinutes: minutes,
+                    status: minutes >= 480 ? 'fullDay' : 'partialDay'
+                };
+
+            });
+
+            // Add a test record for today to ensure we have at least one day with 8+ hours
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+
+            // Only add test data if we're viewing the current month
+            if (today.getMonth() + 1 === selectedMonth && today.getFullYear() === selectedYear) {
+                attendanceData[todayStr] = {
+                    workedHours: 9,
+                    totalWorkedMinutes: 540, // 9 hours = 540 minutes
+                    status: 'fullDay'
+                };
+            }
+            return attendanceData;
+        } catch (error) {
+            console.error('Error fetching attendance data:', error);
+            return {};
+        }
+    };
 
     const getCurrentMonthDays = () => {
         const markedDates = {};
 
-        // Loop over the leaveData and set the marked color
+        // Mark leave days (red)
         Object.keys(leaveData).forEach(date => {
             markedDates[date] = {
                 selected: true,
-                selectedColor: '#DC143C', // crimson color for leave
+                selectedColor: '#DC143C',
                 startingDay: true,
                 endingDay: true,
                 color: '#DC143C',
                 textColor: 'white',
-        };
-    });
+            };
+        });
 
-    return markedDates;
+        // Mark days with 8+ hours (480+ minutes) worked (green)
+        Object.keys(attendanceData).forEach(date => {
+            // Skip if this date is already marked as leave
+            if (markedDates[date]) {
+                return;
+            }
+
+            // Only mark days with 480+ minutes (8+ hours) worked
+            const minutes = attendanceData[date].totalWorkedMinutes;
+
+            // Convert to number to ensure proper comparison
+            const minutesNum = Number(minutes);
+
+            // Strict check: must be a number and >= 480
+            if (!isNaN(minutesNum) && minutesNum >= 480) {
+                markedDates[date] = {
+                    selected: true,
+                    selectedColor: '#4CD964', // Green color for 8+ hours worked
+                    startingDay: true,
+                    endingDay: true,
+                    color: '#4CD964',
+                    textColor: 'white',
+                };
+            }
+        });
+
+        return markedDates;
     };
 
     const handleSaveTask = async () => {
@@ -282,106 +343,14 @@ export default function Dashboard({ navigation }) {
         });
     };
 
-    // Check-In
-    const handleCheckIn = async () => {
-        if (!user) return;
+    // Attendance functions moved to Attendance.js
 
-        try {
-            const checkInTimestamp = new Date().toISOString();
-            setCheckInTime(checkInTimestamp);
-            setCheckOutTime(null);
-            setIsCheckInDisabled(true);
-            setIsCheckOutDisabled(false);
-
-            const docRef = doc(FIRESTORE_DB, 'attendance', user.uid);
-            await setDoc(docRef, {
-                checkInTime: checkInTimestamp,
-                checkOutTime: null,
-                workedHours: 0,
-                totalWorkedMinutes: totalWorkedMinutes, // Preserve existing total
-                userId: user.uid,
-                email: user.email,
-                username: username,
-                date: new Date().toLocaleDateString(),
-                timestamp: serverTimestamp(),
-            });
-
-            console.log("Check-In saved in Firestore:", checkInTimestamp);
-            Alert.alert("Success", `Checked In at ${formatDateTime(checkInTimestamp)}!`);
-        } catch (error) {
-            console.error("Error during check-in:", error);
-            Alert.alert("Error", "Failed to Check In");
-        }
-    };
-
-    // Check-Out
-    const handleCheckOut = async () => {
-        if (!user || !checkInTime) return;
-
-        try {
-            const checkOutTimestamp = new Date().toISOString();
-
-            // Calculate time worked for this session
-            const diffMs = new Date(checkOutTimestamp) - new Date(checkInTime);
-            const session = Math.floor(diffMs / (1000 * 60));
-
-            // Add to total worked minutes
-            const newTotalMinutes = session;
-            setTotalWorkedMinutes(newTotalMinutes);
-
-            // Calculate total hours and minutes for display
-            const totalHours = Math.floor(newTotalMinutes / 60);
-            const remainingMinutes = newTotalMinutes % 60;
-            const totalWorkedDuration = `${totalHours} hrs ${remainingMinutes} mins`;
-
-            // Calculate session duration for display
-            const sessionHours = Math.floor(session / 60);
-            const sessionRemainingMinutes = session % 60;
-            const sessionDuration = `${sessionHours} hrs ${sessionRemainingMinutes} mins`;
-
-            const attendanceRef = doc(FIRESTORE_DB, 'attendance', user.uid);
-            await updateDoc(attendanceRef, {
-                checkOutTime: checkOutTimestamp,
-                workedHours: totalWorkedDuration,
-                totalWorkedMinutes: newTotalMinutes
-            });
-
-            setCheckOutTime(checkOutTimestamp);
-            setWorkedHours(totalWorkedDuration);
-
-            // Don't disable check-out button after checking out
-            // This allows multiple check-outs
-
-            Alert.alert(
-                "Success",
-                `Checked Out - ${formatDateTime(checkOutTimestamp)}!\n\nThis session: ${sessionDuration}\nWorked Hours: ${totalWorkedDuration}`
-            );
-
-        } catch (error) {
-            console.error("Error during check-out:", error);
-            Alert.alert("Error", "Failed to Check Out");
-        }
-    };
-
-    // function to format date strings
-    const formatDateTime = (dateTimeString) => {
-        if (!dateTimeString) return 'Not Available';
-
-        try {
-            const date = new Date(dateTimeString);
-            return format(date, 'dd-MM-yyyy HH:mm');
-        } catch (error) {
-            console.error('Error formatting date:', error);
-            return dateTimeString;
-        }
-    };
+    // formatDateTime function moved to Attendance.js
 
     const fetchLeaveRequest = async () => {
         if(!user) return {};
 
         try {
-            console.log("Fetching leave requests for user:", user.uid);
-
             const leaveQuery = query(
                 collection(FIRESTORE_DB, 'leaveRequests'),
                 where('userId', '==', user.uid),
@@ -389,27 +358,18 @@ export default function Dashboard({ navigation }) {
             );
 
             const querySnapshot = await getDocs(leaveQuery);
-            console.log("Leave requests found:", querySnapshot.size);
-
             const leaveData = {};
 
             // processing each leave request
             querySnapshot.forEach(doc => {
-                console.log("Processing leave request:", doc.id);
                 const leave = doc.data();
-                console.log("Leave data:", leave);
-
                 const startDate = new Date(leave.startDate);
                 const endDate = new Date(leave.endDate);
 
-                console.log("Start date:", startDate);
-                console.log("End date:", endDate);
-
-                // Mark all days in the leave period
+                // Marking all days in the leave period
                 const currentDate = new Date(startDate);
                 while (currentDate <= endDate) {
                     const dateStr = currentDate.toISOString().split('T')[0];
-                    console.log("Adding leave day:", dateStr);
 
                     leaveData[dateStr] = {
                         leaveType: leave.leaveType,
@@ -421,7 +381,6 @@ export default function Dashboard({ navigation }) {
                 }
             });
 
-            console.log("Final leave data:", leaveData);
             return leaveData;
         } catch (error) {
             console.error('Error fetching leave requests:', error);
@@ -454,31 +413,6 @@ export default function Dashboard({ navigation }) {
 
             <View>
                 <Text style={[styles.usertext, { textAlign: 'left' }]}>Hello, {username}!</Text>
-            </View>
-
-            {/* check in & check out feature */}
-            <View style={styles.attendanceCard}>
-                <Text style={styles.checkinText}>Check-In Time: {checkInTime ? formatDateTime(checkInTime) : 'Not Checked In'}</Text>
-                <Text style={styles.checkinText}>Check-Out: {checkOutTime ? formatDateTime(checkOutTime) : 'Not Checked Out'}</Text>
-                <Text style={styles.checkinText}>Worked Hours: {workedHours ? `${workedHours}` : 'N/A'}</Text>
-            </View>
-
-            <View style={styles.buttonRow}>
-                <Pressable
-                    style={[styles.checkinButton, isCheckInDisabled && styles.disabledButton]}
-                    onPress={handleCheckIn}
-                    disabled={isCheckInDisabled}
-                >
-                    <Text style={styles.buttonText}>Check In</Text>
-                </Pressable>
-
-                <Pressable
-                    style={[styles.checkinButton, isCheckOutDisabled && styles.disabledButton]}
-                    onPress={handleCheckOut}
-                    disabled={isCheckOutDisabled}
-                >
-                    <Text style={styles.buttonText}>Check Out</Text>
-                </Pressable>
             </View>
 
             {/* month and year picker */}
@@ -556,7 +490,7 @@ export default function Dashboard({ navigation }) {
                 /> */}
 
                 <Calendar
-                    key={`${selectedYear}-${selectedMonth}`}
+                    key={`${selectedYear}-${selectedMonth}-${JSON.stringify(attendanceData)}`}
                     style={styles.calendar}
                     hideArrows={true}
                     theme={{
@@ -594,15 +528,19 @@ export default function Dashboard({ navigation }) {
                         );
                     }}
                 />
-            </View>
 
-            {/* <View style={{ flex: 1 }}>
-              <Calendar
-                startDate="2024-03-05"
-                endDate="2024-03-12"
-                onChange={({ startDate, endDate }) => console.log({ startDate, endDate })}
-              />
-            </View>; */}
+                {/* Calendar Legend */}
+                <View style={styles.legendContainer}>
+                    <View style={styles.legendItem}>
+                        <View style={[styles.legendColor, { backgroundColor: '#DC143C' }]} />
+                        <Text style={styles.legendText}>Leave Day</Text>
+                    </View>
+                    <View style={styles.legendItem}>
+                        <View style={[styles.legendColor, { backgroundColor: '#4CD964' }]} />
+                        <Text style={styles.legendText}>Full Work Day</Text>
+                    </View>
+                </View>
+            </View>
 
             <Modal
                 animationType="slide"
@@ -768,12 +706,11 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     pickerContainer: {
-        // marginTop: -10,
         flexDirection: 'row',
         justifyContent: 'space-between',
         width: '100%',
+        marginBottom: 15,
     },
-
     picker: {
         height: 55,
         width: 160,
@@ -876,28 +813,12 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     usertext: {
-        marginTop: -10,
+        marginTop: 5,
         textAlign: 'justify',
         fontStyle: 'italic',
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: '600',
         color: '#333',
-        marginBottom: 10,
-    },
-    attendanceCard: {
-        // marginTop: 15,
-        backgroundColor: 'white',
-        borderRadius: 10,
-        padding: 10,
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-        width: '90%',
         marginBottom: 10,
     },
     checkinText: {
@@ -980,4 +901,27 @@ const styles = StyleSheet.create({
         color: '#333',
         textAlign: 'center',
     },
+    // Calendar legend styles
+    legendContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        marginTop: 15,
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: '#f0f0f0',
+    },
+    legendItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    legendColor: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        marginRight: 8,
+    },
+    legendText: {
+        fontSize: 14,
+        color: '#666',
+    }
 });
