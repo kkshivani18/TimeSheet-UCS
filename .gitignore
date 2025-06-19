@@ -39,3 +39,6 @@ app-example
 
 # environment variables
 .env
+
+# apk files
+.apk
