@@ -135,6 +135,33 @@ export default function AdminLeave({ navigation }) {
         setActiveFilter(false);
     };
 
+    // handle local deletion
+    const handleLocalDelete = (requestId) => {
+        Alert.alert(
+            "Delete Request",
+            "Are you sure you want to remove this request from view?",
+            [
+                {
+                    text: "Cancel",
+                    style: "cancel"
+                },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: () => {
+                        // Remove from both main and filtered lists
+                        setLeaveRequests(prev => 
+                            prev.filter(req => req.id !== requestId)
+                        );
+                        setFilteredRequests(prev => 
+                            prev.filter(req => req.id !== requestId)
+                        );
+                    }
+                }
+            ]
+        );
+    };
+
     // Handle Logout
     const handleLogout = () => {
         FIREBASE_AUTH.signOut()
@@ -191,7 +218,16 @@ export default function AdminLeave({ navigation }) {
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
                         <View style={styles.card}>
-                            <Text style={styles.username}>Leave Request - {item.username}</Text>
+                            <View style={styles.cardHeader}>
+                                <Text style={styles.username}>Leave Request - {item.username}</Text>
+                                <TouchableOpacity 
+                                    style={styles.deleteButton}
+                                    onPress={() => handleLocalDelete(item.id)}
+                                >
+                                    <Icon name="close" size={20} color="#FF3B30" />
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={styles.date}>User Id - {item.userId}</Text>
                             <Text style={styles.date}>Date: {formatDate(item.startDate)} to {formatDate(item.endDate)}</Text>
                             <Text style={styles.date}>Days: {item.numberOfDays}</Text>
                             <Text style={styles.reason}>Reason: {item.reason}</Text>
@@ -339,15 +375,39 @@ const styles = StyleSheet.create({
         fontSize: 16, 
         color: '#666' 
     },
+    // card: {
+    //     flex: 1,
+    //     backgroundColor: 'white',
+    //     borderRadius: 10,
+    //     padding: 15,
+    //     marginBottom: 15,
+    //     elevation: 3,   
+    //     alignSelf: 'center',
+    //     // marginHorizontal: 10,
+    //     width: screenWidth - 30, // leave some margin
+    // },
     card: {
-        flex: 1,
         backgroundColor: 'white',
         borderRadius: 10,
         padding: 15,
         marginBottom: 15,
-        elevation: 3,   
-        alignSelf: 'center',
-        width: screenWidth - 30, // leave some margin
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        marginRight: 10,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    deleteButton: {
+        padding: 5,
+        borderRadius: 15,
+        backgroundColor: '#FFE5E5',
     },
     username: { 
         fontSize: 16, 

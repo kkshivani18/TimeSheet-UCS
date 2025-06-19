@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert} from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, Platform } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Picker } from '@react-native-picker/picker';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
 
 const months = [
     { label: 'January', value: 1 },
@@ -23,14 +25,18 @@ const months = [
 ];
 
 export default function AdminTasks({ navigation }) {
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); 
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedDate, setSelectedDate] = useState('');
     const [modalVisible, setModalVisible] = useState(false);
     const [taskHeading, setTaskHeading] = useState('');
     const [taskDescription, setTaskDescription] = useState('');
-    const [taskDeadline, setTaskDeadline] = useState('');
     const [username, setUsername] = useState('');
+
+    // Date and time picker states
+    const [deadlineDate, setDeadlineDate] = useState(new Date());
+    const [showPicker, setShowPicker] = useState(false);
+    const [pickerMode, setPickerMode] = useState('date');
 
     useEffect(() => {
         const fetchUserData = async () => {
@@ -62,7 +68,14 @@ export default function AdminTasks({ navigation }) {
         const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
         const markedDates = {};
         for (let day = 1; day <= daysInMonth; day++) {
-            const date = new Date(selectedYear, selectedMonth - 1, day).toISOString().split('T')[0];
+            // Safely create date string with error handling
+            let date;
+            try {
+                date = new Date(selectedYear, selectedMonth - 1, day).toISOString().split('T')[0];
+            } catch (error) {
+                console.error('Error creating date string:', error);
+                date = ''; // Provide a default value
+            }
             markedDates[date] = { marked: false }; // have to customize more
         }
         return markedDates;
@@ -84,17 +97,16 @@ export default function AdminTasks({ navigation }) {
                 Alert.alert('error', 'Please enter a task description');
                 return;
             }
-            if (!taskDeadline.trim()) {
-                Alert.alert('error', 'Please enter a deadline');
-                return;
-            }
-    
+
             const user = FIREBASE_AUTH.currentUser;
             if (!user) {
                 Alert.alert('error', 'No user logged in');
                 return;
             }
-    
+
+            // Format the deadline date using date-fns
+            const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
+
             const newTask = {
                 userId: user.uid,
                 email: user.email,
@@ -102,28 +114,29 @@ export default function AdminTasks({ navigation }) {
                 date: new Date(selectedDate).toISOString(),
                 heading: taskHeading.trim(),
                 description: taskDescription.trim(),
-                deadline: taskDeadline.trim(),
+                deadline: formattedDeadline,
                 completed: false,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
-            
+
             // Add task to Firestore
             const docRef = await addDoc(collection(FIRESTORE_DB, 'tasks'), newTask);
-            
+
             // Show success message
             Alert.alert('Success', 'Task added successfully');
-            
+
             // Navigate to Tasks screen with both date and new task
-            navigation.navigate('Tasks', { 
+            navigation.navigate('Tasks', {
                 date: selectedDate,
-                newTask: { id: docRef.id, ...newTask } 
+                newTask: { id: docRef.id, ...newTask }
             });
-            
+
             // Reset form and close modal
             setTaskHeading('');
             setTaskDescription('');
-            setTaskDeadline('');
+            setDeadlineDate(new Date());
+            setShowPicker(false);
             setModalVisible(false);
         } catch (error) {
             console.error('Error saving task:', error);
@@ -132,7 +145,7 @@ export default function AdminTasks({ navigation }) {
     };
 
     const viewTasksForDate = (date) => {
-        navigation.navigate('Tasks', { 
+        navigation.navigate('Tasks', {
             date: date,
             timestamp: new Date().getTime()
         });
@@ -192,7 +205,7 @@ export default function AdminTasks({ navigation }) {
             </View>
             <View style={styles.card}>
                 <Calendar
-                    key={`${selectedYear}-${selectedMonth}`} 
+                    key={`${selectedYear}-${selectedMonth}`}
                     style={styles.calendar}
                     hideArrows={true}
                     theme={{
@@ -216,7 +229,7 @@ export default function AdminTasks({ navigation }) {
                         textDayHeaderFontSize: 14,
                     }}
                     markedDates={getCurrentMonthDays()}
-                    current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`} 
+                    current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`}
                     onDayPress={(day) => {
                         setSelectedDate(day.dateString);
                         Alert.alert(
@@ -250,14 +263,14 @@ export default function AdminTasks({ navigation }) {
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}> Add Task for {selectedDate}</Text>
-                            <TouchableOpacity 
-                                onPress={() => setModalVisible(false)} 
+                            <TouchableOpacity
+                                onPress={() => setModalVisible(false)}
                                 style={styles.closeButton}
                             >
                                 <Ionicons name="close" size={24} color="black" />
                             </TouchableOpacity>
                         </View>
-                        
+
                         <View style={styles.inputContainer}>
                             <Text style={styles.inputLabel}>Task Heading</Text>
                             <TextInput
@@ -266,7 +279,7 @@ export default function AdminTasks({ navigation }) {
                                 value={taskHeading}
                                 onChangeText={setTaskHeading}
                             />
-                            
+
                             <Text style={styles.inputLabel}>Description</Text>
                             <TextInput
                                 style={[styles.input, styles.textArea]}
@@ -276,18 +289,93 @@ export default function AdminTasks({ navigation }) {
                                 multiline={true}
                                 numberOfLines={4}
                             />
-                            
+
                             <Text style={styles.inputLabel}>Deadline</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Enter deadline (e.g. 5:00 PM)"
-                                value={taskDeadline}
-                                onChangeText={setTaskDeadline}
-                            />
+                            <View style={styles.dateTimeButtonsContainer}>
+                                <TouchableOpacity
+                                    style={styles.dateTimeButton}
+                                    onPress={() => {
+                                        // Ensure any existing picker is closed first
+                                        setShowPicker(false);
+                                        // Use setTimeout to ensure the previous picker is fully closed
+                                        setTimeout(() => {
+                                            setPickerMode('date');
+                                            setShowPicker(true);
+                                        }, 100);
+                                    }}
+                                >
+                                    <Icon name="calendar" type="feather" size={16} color="#007AFF" />
+                                    <Text style={styles.dateTimeButtonText}>Select Date</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.dateTimeButton}
+                                    onPress={() => {
+                                        // Ensure any existing picker is closed first
+                                        setShowPicker(false);
+                                        // Use setTimeout to ensure the previous picker is fully closed
+                                        setTimeout(() => {
+                                            setPickerMode('time');
+                                            setShowPicker(true);
+                                        }, 100);
+                                    }}
+                                >
+                                    <Icon name="clock" type="feather" size={16} color="#007AFF" />
+                                    <Text style={styles.dateTimeButtonText}>Select Time</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.selectedDeadlineContainer}>
+                                <Text style={styles.selectedDeadlineText}>
+                                    {format(deadlineDate, 'dd/MM/yyyy - hh:mm a')}
+                                </Text>
+                            </View>
+
+                            {showPicker && (
+                                <DateTimePicker
+                                    testID="dateTimePicker"
+                                    value={deadlineDate}
+                                    mode={pickerMode}
+                                    is24Hour={false}
+                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    onChange={(_, selectedDate) => {
+                                        // Always hide the picker on Android after selection
+                                        if (Platform.OS === 'android') {
+                                            setShowPicker(false);
+                                        }
+
+                                        // Update the date if a selection was made
+                                        if (selectedDate) {
+                                            // For iOS, if in date mode, switch to time mode after date selection
+                                            if (Platform.OS === 'ios' && pickerMode === 'date') {
+                                                setPickerMode('time');
+                                                // Create a new date with the selected date but keep current time
+                                                const updatedDate = new Date(selectedDate);
+                                                updatedDate.setHours(deadlineDate.getHours());
+                                                updatedDate.setMinutes(deadlineDate.getMinutes());
+                                                setDeadlineDate(updatedDate);
+                                            }
+                                            // For iOS, if in time mode, hide picker after time selection
+                                            else if (Platform.OS === 'ios' && pickerMode === 'time') {
+                                                setShowPicker(false);
+                                                // Create a new date with the current date but selected time
+                                                const updatedDate = new Date(deadlineDate);
+                                                updatedDate.setHours(selectedDate.getHours());
+                                                updatedDate.setMinutes(selectedDate.getMinutes());
+                                                setDeadlineDate(updatedDate);
+                                            }
+                                            // For Android, update the date directly
+                                            else {
+                                                setDeadlineDate(selectedDate);
+                                            }
+                                        }
+                                    }}
+                                />
+                            )}
                         </View>
 
-                        <TouchableOpacity 
-                            style={styles.saveButton} 
+                        <TouchableOpacity
+                            style={styles.saveButton}
                             onPress={handleSaveTask}
                         >
                             <Text style={styles.saveButtonText}>Save Task</Text>
@@ -425,7 +513,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         alignItems: 'center',
     },
-    
+
     saveButtonText: {
         color: 'white',
         fontSize: 16,
@@ -438,5 +526,42 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#333',
         marginBottom: 20,
+    },
+    // Date and time picker styles
+    dateTimeButtonsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    dateTimeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f0f0f0',
+        borderWidth: 1,
+        borderColor: '#007AFF',
+        borderRadius: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        width: '48%',
+    },
+    dateTimeButtonText: {
+        color: '#007AFF',
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 5,
+    },
+    selectedDeadlineContainer: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 15,
+        backgroundColor: '#f9f9f9',
+    },
+    selectedDeadlineText: {
+        fontSize: 16,
+        color: '#333',
+        textAlign: 'center',
     },
 });

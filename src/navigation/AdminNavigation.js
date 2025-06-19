@@ -4,6 +4,7 @@ import Admin from '../components/Admin';
 import AdminTasks from '../components/AdminTasks';
 import AdminLeave from '../components/AdminLeave';
 import AdminAttendance from '../components/AdminAttendance';
+import AdminCompOff from '../components/AdminCompOff';
 import { Icon } from 'react-native-elements';
 
 const AdminDrawer = createDrawerNavigator();
@@ -57,6 +58,16 @@ export default function AdminNavigator() {
                     drawerLabel: 'Attendance Management',
                     drawerIcon: ({color}) => (
                         <Icon name="access-time" size={20} color={color} />
+                    )
+                }}
+            />
+            <AdminDrawer.Screen
+                name="AdminCompOff"
+                component={AdminCompOff}
+                options={{
+                    drawerLabel: 'CompOff Requests',
+                    drawerIcon: ({color}) => (
+                        <Icon name="event" size={20} color={color} />
                     )
                 }}
             />

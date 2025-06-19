@@ -100,7 +100,7 @@ export default function Admin({ navigation }) {
 
     const viewUserTasks = (date) => {
         if (!selectedUser) {
-            Alert.alert('Error', 'Please select a user first');
+            Alert.alert('Error', 'Please select an employee first');
             return;
         }
 
@@ -135,14 +135,14 @@ export default function Admin({ navigation }) {
                 <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())}>
                     <Icon name="menu" size={22} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.title}>Admin Dashboard</Text>
+                <Text style={styles.title}>Employee Management</Text>
                 <TouchableOpacity onPress={handleLogout}>
                     <Icon name="logout" size={25} color="#333" />
                 </TouchableOpacity>
             </View>
 
             <View style={styles.userPickerContainer}>
-                <Text style={styles.label}>Select User:</Text>
+                <Text style={styles.label}>Select Employee:</Text>
                 <Picker
                     selectedValue={selectedUser?.id}
                     style={styles.picker}
@@ -151,47 +151,67 @@ export default function Admin({ navigation }) {
                         setSelectedUser(user);
                     }}
                 >
-                    <Picker.Item label="Select a user" value={null} />
+                    <Picker.Item label="Select an Employee" value={null} />
                     {users.map(user => (
-                        <Picker.Item 
-                            key={user.id} 
-                            label={user.username} 
+                        <Picker.Item
+                            key={user.id}
+                            label={user.username}
                             value={user.id}
                         />
                     ))}
                 </Picker>
             </View>
 
-            <View style={styles.pickerContainerMonYr}>
+            <View style={styles.pickerContainer}>
                 <Picker
                     selectedValue={selectedMonth}
-                        style={styles.pickerMonYr}
-                        onValueChange={handleMonthChange}
-                    >
-                        {months.map((month) => (
-                            <Picker.Item key={month.value} label={month.label} value={month.value} />
-                        ))}
-                    </Picker>
-                    <Picker
-                        selectedValue={selectedYear}
-                        style={styles.pickerMonYr}
-                        onValueChange={handleYearChange}
-                    >
-                        {[...Array(20).keys()].map(year => (
-                            <Picker.Item key={year} label={`${selectedYear - 10 + year}`} value={selectedYear - 10 + year} />
-                        ))}
+                    style={styles.pickerMonYr}
+                    onValueChange={handleMonthChange}
+                >
+                    {months.map((month) => (
+                        <Picker.Item key={month.value} label={month.label} value={month.value} />
+                    ))}
+                </Picker>
+                <Picker
+                    selectedValue={selectedYear}
+                    style={styles.pickerMonYr}
+                    onValueChange={handleYearChange}
+                >
+                    {[...Array(20).keys()].map(year => (
+                        <Picker.Item key={year} label={`${selectedYear - 10 + year}`} value={selectedYear - 10 + year} />
+                    ))}
                 </Picker>
             </View>
 
             {selectedUser && (
-                <View style={styles.calendarContainer}>
+                <View style={styles.card}>
                     <Text style={styles.subtitle}>
                         {selectedUser.username}'s Calendar
                     </Text>
                     <Calendar
-                        key={`${selectedYear}-${selectedMonth}`} 
+                        key={`${selectedYear}-${selectedMonth}`}
                         style={styles.calendar}
                         hideArrows={true}
+                        theme={{
+                        calendarBackground: 'white',
+                        textSectionTitleColor: '#b6c1cd',
+                        selectedDayBackgroundColor: '#00adf5',
+                        selectedDayTextColor: '#ffffff',
+                        todayTextColor: '#00adf5',
+                        dayTextColor: '#2d4150',
+                        textDisabledColor: '#d9e1e8',
+                        dotColor: '#00adf5',
+                        selectedDotColor: '#ffffff',
+                        arrowColor: 'orange',
+                        monthTextColor: 'black',
+                        indicatorColor: 'black',
+                        textDayFontWeight: '300',
+                        textMonthFontWeight: 'bold',
+                        textDayHeaderFontWeight: '300',
+                        textDayFontSize: 16,
+                        textMonthFontSize: 16,
+                        textDayHeaderFontSize: 14,
+                        }}
                         current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`}
                         onDayPress={(day) => viewUserTasks(day.dateString)}
                     />
@@ -204,8 +224,10 @@ export default function Admin({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: '#f0f0f0',
         padding: 16,
+        marginTop: 25,
+        alignItems: 'center',
     },
     header: {
         width: '100%',
@@ -214,15 +236,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 10,
+        borderRadius: 15,
         backgroundColor: '#f8f8f8',
-        marginTop: 25,
-        marginBottom: 15,
+        marginBottom: 40,
     },
     title: {
-        fontSize: 20,
+        fontSize: 19,
         fontWeight: 'bold',
-        marginLeft: 20,
-        color: '#333',
     },
     userPickerContainer: {
         backgroundColor: 'white',
@@ -230,6 +250,7 @@ const styles = StyleSheet.create({
         padding: 16,
         marginBottom: 15,
         elevation: 2,
+        width: '100%',
     },
     label: {
         fontSize: 16,
@@ -241,23 +262,33 @@ const styles = StyleSheet.create({
         backgroundColor: '#f8f8f8',
         borderRadius: 8
     },
-    pickerMonYr: {
-        backgroundColor: '#f8f8f8',
-        borderRadius: 8,
-        height: 55,
-        width: 160,
-    },
-    pickerContainerMonYr: {
+
+    // Month/Year picker container matching AdminTasks.js
+    pickerContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         width: '100%',
-        marginBottom: 15,
+        marginBottom: 10,
     },
-    calendarContainer: {
+    pickerMonYr: {
+        height: 55,
+        width: 160,
+    },
+
+    // Card container matching AdminTasks.js
+    card: {
         backgroundColor: 'white',
         borderRadius: 10,
-        padding: 16,
-        elevation: 2,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+        width: '90%',
     },
     subtitle: {
         fontSize: 16,
@@ -266,8 +297,6 @@ const styles = StyleSheet.create({
         color: '#333',
     },
     calendar: {
-        borderWidth: 1,
-        borderColor: '#ddd',
         borderRadius: 10,
     }
 });

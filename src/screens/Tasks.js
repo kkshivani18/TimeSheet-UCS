@@ -284,6 +284,24 @@ export default function Tasks({ route, navigation }) {
 
         // parse the deadline string to a Date object
         try {
+            // First check if deadline exists and is in the expected format
+            if (!task.deadline || typeof task.deadline !== 'string') {
+                console.log('Deadline is undefined or not a string, using current date');
+                setDeadlineDate(new Date());
+                setShowPicker(false);
+                setModalEditVisible(true);
+                return;
+            }
+
+            // Check if the deadline string contains the expected delimiter
+            if (!task.deadline.includes(' - ')) {
+                console.log('Deadline format is not as expected, using current date');
+                setDeadlineDate(new Date());
+                setShowPicker(false);
+                setModalEditVisible(true);
+                return;
+            }
+
             // If the deadline is in the format "DD/MM/YYYY - HH:MM AM/PM"
             const deadlineParts = task.deadline.split(' - ');
             const datePart = deadlineParts[0].split('/');
@@ -302,6 +320,12 @@ export default function Tasks({ route, navigation }) {
             if (!isPM && hours === 12) hours = 0;
 
             const deadlineDate = new Date(year, month, day, hours, minutes);
+
+            // Check if the date is valid
+            if (isNaN(deadlineDate.getTime())) {
+                throw new Error('Invalid date created');
+            }
+
             setDeadlineDate(deadlineDate);
         } catch (error) {
             // If parsing fails, use current date

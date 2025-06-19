@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Modal, Share, Platform } from 'react-native';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { getDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
+import { getDoc, doc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isWeekend } from 'date-fns';
+import XLSX from 'xlsx';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { Icon } from 'react-native-elements';
 
 export default function Attendance({ navigation }) {
@@ -10,15 +13,27 @@ export default function Attendance({ navigation }) {
     const [checkInTime, setCheckInTime] = useState(null);
     const [checkOutTime, setCheckOutTime] = useState(null);
     const [workedHours, setWorkedHours] = useState(null);
-    const [totalWorkedMinutes, setTotalWorkedMinutes] = useState(0); // Used in calculations
+    const [totalWorkedMinutes, setTotalWorkedMinutes] = useState(0);
     const [isCheckInDisabled, setIsCheckInDisabled] = useState(false);
     const [isCheckOutDisabled, setIsCheckOutDisabled] = useState(true);
 
-    // Week selection for attendance records
+    // Week and month selection for attendance records
     const currentDate = new Date();
     const [selectedWeek, setSelectedWeek] = useState(currentDate);
+    const [selectedMonth, setSelectedMonth] = useState(currentDate);
     const [weeklyAttendance, setWeeklyAttendance] = useState([]);
+    const [monthlyAttendance, setMonthlyAttendance] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [leaveDays, setLeaveDays] = useState({});
+    const [paidHolidays, setPaidHolidays] = useState({});
+
+    // View type and modal state
+    const [viewType, setViewType] = useState('weekly');
+    const [modalVisible, setModalVisible] = useState(false);
+
+    // Pagination for monthly view
+    const [recordsPerPage] = useState(7);
+    const [currentPage, setCurrentPage] = useState(1);
 
     const user = FIREBASE_AUTH.currentUser;
 
@@ -38,17 +53,24 @@ export default function Attendance({ navigation }) {
         };
 
         fetchUserData();
+        fetchPaidHolidays();
     }, []);
 
     useEffect(() => {
         fetchAttendance();
     }, []);
 
-    // Fetch weekly attendance records when selected week changes
+    // fetch weekly attendance 
     useEffect(() => {
-        console.log('Selected week changed:', selectedWeek);
+        if (viewType === 'weekly') {
+            fetchWeeklyAttendance();
+        }
+    }, [selectedWeek, viewType]);
+
+    // fetch weekly attendance when component first loads
+    useEffect(() => {
         fetchWeeklyAttendance();
-    }, [selectedWeek]);
+    }, []);
 
     const fetchAttendance = async () => {
         if (!user) return;
@@ -68,7 +90,10 @@ export default function Attendance({ navigation }) {
                 const data = docSnap.data();
                 setCheckInTime(data.checkInTime);
                 setCheckOutTime(data.checkOutTime);
-                setWorkedHours(data.workedHours);
+                // setWorkedHours(data.workedHours)
+                
+                // Format the numeric workedHours from Firestore 
+                setWorkedHours(formatHoursToHMS(data.workedHours));
                 setTotalWorkedMinutes(data.totalWorkedMinutes || 0);
 
                 // Disable/Enable Buttons
@@ -100,39 +125,39 @@ export default function Attendance({ navigation }) {
         if (!user) return;
 
         try {
-            const checkInTimestamp = new Date().toISOString();
-            const todayDate = new Date().toLocaleDateString();
+            setIsLoading(true);
+            const currentTime = new Date();
+            const formattedDate = currentTime.toLocaleDateString();
+            const docId = `${user.uid}_${formattedDate.replace(/\//g, '-')}`;
 
-            // Create a document ID that includes the user ID and date
-            const docId = `${user.uid}_${todayDate.replace(/\//g, '-')}`;
+            // Check if already checked in today
+            const existingDoc = await getDoc(doc(FIRESTORE_DB, 'attendance', docId));
+            if (existingDoc.exists()) {
+                Alert.alert('Already Checked In', 'You have already checked in today.');
+                return;
+            }
 
-            setCheckInTime(checkInTimestamp);
-            setCheckOutTime(null);
-            setIsCheckInDisabled(true);
-            setIsCheckOutDisabled(false);
-
-            // Reference to today's attendance document
-            const docRef = doc(FIRESTORE_DB, 'attendance', docId);
-
-            // Create a new document for today with check-in data
-            await setDoc(docRef, {
-                checkInTime: checkInTimestamp,
-                checkOutTime: null,
-                workedHours: '0 hrs 0 mins',
-                totalWorkedMinutes: 0,
+            // Create new attendance record
+            await setDoc(doc(FIRESTORE_DB, 'attendance', docId), {
                 userId: user.uid,
-                email: user.email,
-                username: username,
-                date: todayDate,
-                timestamp: new Date(),
                 docId: docId,
+                checkInTime: currentTime.toISOString(),
+                checkOutTime: null,
+                workedHours: null,
+                totalWorkedMinutes: 0,
+                date: formattedDate
             });
 
-            console.log("Check-In saved in Firestore:", checkInTimestamp);
-            Alert.alert("Success", `Checked In at ${formatDateTime(checkInTimestamp)}!`);
+            setCheckInTime(currentTime);
+            setIsCheckInDisabled(true);
+            setIsCheckOutDisabled(false);
+            Alert.alert('Success', 'Check-in successful!');
+            fetchAttendance();
         } catch (error) {
-            console.error("Error during check-in:", error);
-            Alert.alert("Error", "Failed to Check In");
+            console.error('Error during check-in:', error);
+            Alert.alert('Error', 'Failed to check in. Please try again.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -141,45 +166,72 @@ export default function Attendance({ navigation }) {
         if (!user || !checkInTime) return;
 
         try {
-            const checkOutTimestamp = new Date().toISOString();
-            const todayDate = new Date().toLocaleDateString();
+            setIsLoading(true);
+            const currentTime = new Date();
+            const formattedDate = currentTime.toLocaleDateString();
+            const formattedCurrentDate = format(currentTime, 'yyyy-MM-dd');
+            const docId = `${user.uid}_${formattedDate.replace(/\//g, '-')}`;
 
-            // document ID that includes the user ID and date
-            const docId = `${user.uid}_${todayDate.replace(/\//g, '-')}`;
+            // Get the existing attendance record
+            const attendanceDoc = await getDoc(doc(FIRESTORE_DB, 'attendance', docId));
+            if (!attendanceDoc.exists()) {
+                Alert.alert('Error', 'No check-in record found for today.');
+                return;
+            }
 
-            // Calculate time worked for this session
-            const diffMs = new Date(checkOutTimestamp) - new Date(checkInTime);
-            const session = Math.floor(diffMs / (1000 * 60));
+            const attendanceData = attendanceDoc.data();
+            const checkInTime = new Date(attendanceData.checkInTime);
+            const timeDiff = currentTime - checkInTime;
 
-            // Calculate total hours and minutes for display
-            const totalHours = Math.floor(session / 60);
-            const remainingMinutes = session % 60;
-            const totalWorkedDuration = `${totalHours} hrs ${remainingMinutes} mins`;
+            // Debug logging to understand the time calculation
+            // console.log('=== TIME CALCULATION DEBUG ===');
+            // console.log('Check-in time:', checkInTime.toISOString());
+            // console.log('Check-out time:', currentTime.toISOString());
+            // console.log('Time difference (ms):', timeDiff);
+            // console.log('Time difference (minutes - exact):', timeDiff / (1000 * 60));
 
-            // Session duration calculation removed as it's not needed
+            const workedMinutes = Math.floor(timeDiff / (1000 * 60));
+            // console.log('Worked minutes (floored):', workedMinutes);
 
-            // Reference to today's attendance document
-            const attendanceRef = doc(FIRESTORE_DB, 'attendance', docId);
+            const hours = Math.floor(workedMinutes / 60);
+            const minutes = workedMinutes % 60;
+            const workedHoursStr = `${hours}h ${minutes}m`; 
+            const workedHoursNumeric = parseFloat((workedMinutes / 60).toFixed(2));
+            const isLeaveDay = leaveDays[formattedCurrentDate] ? true : false;
+            const isWeekendDay = isWeekend(currentTime);
+            const isHoliday = paidHolidays[formattedCurrentDate] ? true : false;
 
-            // Update today's document with check-out data
-            await updateDoc(attendanceRef, {
-                checkOutTime: checkOutTimestamp,
-                workedHours: totalWorkedDuration,
-                totalWorkedMinutes: session
+            // overtime hours
+            let overtimeHours = 0;
+            if (workedMinutes > 480) {
+                overtimeHours = (workedMinutes - 480) / 60;
+            }
+
+            // Update the attendance record
+            await updateDoc(doc(FIRESTORE_DB, 'attendance', docId), {
+                checkOutTime: currentTime.toISOString(),
+                workedHours: workedHoursNumeric, 
+                totalWorkedMinutes: workedMinutes,
+                isWeekend: isWeekendDay,
+                isHoliday: isHoliday,
+                isLeave: isLeaveDay,
+                // Ensure overtimeHours is also stored as a number with two decimal places
+                overtimeHours: overtimeHours > 0 ? parseFloat(overtimeHours.toFixed(2)) : 0,
+                holidayName: isHoliday ? paidHolidays[formattedCurrentDate] : null,
+                leaveType: isLeaveDay ? leaveDays[formattedCurrentDate] : null
             });
 
-            setCheckOutTime(checkOutTimestamp);
-            setWorkedHours(totalWorkedDuration);
-            setTotalWorkedMinutes(session);
-
-            Alert.alert(
-                "Success",
-                `Checked Out - ${formatDateTime(checkOutTimestamp)}!\nWorked Hours: ${totalWorkedDuration}`
-            );
-
+            setCheckOutTime(currentTime);
+            setWorkedHours(workedHoursNumeric); 
+            setTotalWorkedMinutes(workedMinutes);
+            setIsCheckOutDisabled(true);
+            Alert.alert('Success', 'Check-out successful!');
+            fetchAttendance();
         } catch (error) {
-            console.error("Error during check-out:", error);
-            Alert.alert("Error", "Failed to Check Out");
+            console.error('Error during check-out:', error);
+            Alert.alert('Error', 'Failed to check out. Please try again.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -198,14 +250,14 @@ export default function Attendance({ navigation }) {
 
     // function to format only time part of date strings
     const formatTimeOnly = (dateTimeString) => {
-        if (!dateTimeString) return null;
+        if (!dateTimeString) return '-';
 
         try {
             const date = new Date(dateTimeString);
             return format(date, 'HH:mm');
         } catch (error) {
             console.error('Error formatting time:', error);
-            return null;
+            return '-';
         }
     };
 
@@ -214,6 +266,7 @@ export default function Attendance({ navigation }) {
      * @param {string} date - The date in format MM/DD/YYYY or a Date object
      * @returns {Promise<Object|null>} - The attendance record or null if not found
      */
+    
     const fetchAttendanceForDate = async (date) => {
         if (!user) return null;
 
@@ -259,6 +312,29 @@ export default function Attendance({ navigation }) {
         }
     };
 
+    // Function to fetch paid holidays
+    const fetchPaidHolidays = async () => {
+        try {
+            const currentYear = new Date().getFullYear();
+            const holidaysQuery = query(
+                collection(FIRESTORE_DB, 'paidHolidays'),
+                where('year', '==', currentYear)
+            );
+            const querySnapshot = await getDocs(holidaysQuery);
+            const holidaysMap = {};
+            querySnapshot.docs.forEach(doc => {
+                const holiday = doc.data();
+                // Parse date string "DD-MM-YYYY" and format to "YYYY-MM-DD" for consistency
+                const [day, month, year] = holiday.date.split('-');
+                const holidayDateFormatted = `${year}-${month}-${day}`;
+                holidaysMap[holidayDateFormatted] = holiday.description;
+            });
+            setPaidHolidays(holidaysMap);
+        } catch (error) {
+            console.error('Error fetching paid holidays:', error);
+        }
+    };
+
     // Function to fetch weekly attendance records
     const fetchWeeklyAttendance = async () => {
         if (!user) return;
@@ -269,33 +345,30 @@ export default function Attendance({ navigation }) {
             const weekDate = new Date(selectedWeek);
 
             // Create date range for the selected week (Sunday to Saturday)
-            console.log('Fetching weekly attendance, selectedWeek:', selectedWeek);
-            console.log('Converted weekDate:', weekDate);
-
-            // Use consistent options for both start and end of week
             const start = startOfWeek(weekDate, { weekStartsOn: 0 });
             const end = endOfWeek(weekDate, { weekStartsOn: 0 });
-
-            console.log('Week range:', start, 'to', end);
 
             // Get all days in the week
             const daysInWeek = eachDayOfInterval({ start, end });
 
             // Initialize attendance data with empty values for all days
-            const initialAttendance = daysInWeek.map(day => ({
-                date: format(day, 'yyyy-MM-dd'),
-                formattedDate: format(day, 'dd-MM'), // day and month
-                dayOfWeek: format(day, 'EEE'),
-                checkInTime: null,
-                checkOutTime: null,
-                workedHours: 'N/A',
-                totalWorkedMinutes: 0
-            }));
-
-            // More efficient approach: Fetch attendance records for each day in the week
-            const attendanceData = {};
+            const initialAttendance = daysInWeek.map(day => {
+                const formattedDate = format(day, 'yyyy-MM-dd');
+                return {
+                    date: formattedDate,
+                    formattedDate: format(day, 'dd-MM'),
+                    dayOfWeek: format(day, 'EEE'),
+                    checkInTime: null,
+                    checkOutTime: null,
+                    workedHours: '-',
+                    totalWorkedMinutes: 0,
+                    isHoliday: !!paidHolidays[formattedDate],
+                    holidayDescription: paidHolidays[formattedDate] || null
+                };
+            });
 
             // Process each day in the week
+            const attendanceData = {};
             for (const day of daysInWeek) {
                 try {
                     // Format the date to match what's stored in Firestore
@@ -310,7 +383,7 @@ export default function Attendance({ navigation }) {
                         attendanceData[dateKey] = {
                             checkInTime: attendanceRecord.checkInTime,
                             checkOutTime: attendanceRecord.checkOutTime,
-                            workedHours: attendanceRecord.workedHours || 'N/A',
+                            workedHours: attendanceRecord.workedHours || '-',
                             totalWorkedMinutes: attendanceRecord.totalWorkedMinutes || 0
                         };
                     }
@@ -358,7 +431,340 @@ export default function Attendance({ navigation }) {
         setSelectedWeek(new Date());
     };
 
+    // Function to fetch monthly attendance records
+    const fetchMonthlyAttendance = async () => {
+        if (!user) return;
+
+        setIsLoading(true);
+        try {
+            // Get the year and month from selectedMonth
+            const year = selectedMonth.getFullYear();
+            const month = selectedMonth.getMonth();
+
+            // Create the first and last day of the month
+            const firstDayOfMonth = new Date(year, month, 1);
+            const lastDayOfMonth = new Date(year, month + 1, 0);
+
+            console.log(`Fetching monthly attendance for ${year}-${month + 1}`);
+            console.log('Month range:', firstDayOfMonth, 'to', lastDayOfMonth);
+
+            // Get all days in the month
+            const daysInMonth = [];
+            const currentDay = new Date(firstDayOfMonth);
+
+            while (currentDay <= lastDayOfMonth) {
+                daysInMonth.push(new Date(currentDay));
+                currentDay.setDate(currentDay.getDate() + 1);
+            }
+
+            // Initialize attendance data with empty values for all days
+            const initialAttendance = daysInMonth.map(day => {
+                const formattedDate = format(day, 'yyyy-MM-dd');
+                return {
+                    date: formattedDate,
+                    formattedDate: format(day, 'dd-MM'),
+                    dayOfWeek: format(day, 'EEE'),
+                    checkInTime: null,
+                    checkOutTime: null,
+                    workedHours: 'N/A',
+                    totalWorkedMinutes: 0,
+                    isHoliday: !!paidHolidays[formattedDate],
+                    holidayDescription: paidHolidays[formattedDate] || null
+                };
+            });
+
+            // Fetch leave data for the month
+            await fetchMonthLeaveData(firstDayOfMonth, lastDayOfMonth);
+
+            // Fetch attendance records for each day in the month
+            const attendanceData = {};
+
+            // Process each day in the month
+            for (const day of daysInMonth) {
+                try {
+                    // Format the date to match what's stored in Firestore
+                    const dateFormatted = day.toLocaleDateString();
+
+                    // Fetch attendance for this specific day
+                    const attendanceRecord = await fetchAttendanceForDate(dateFormatted);
+
+                    if (attendanceRecord) {
+                        // If record exists, add it to our data
+                        const dateKey = format(day, 'yyyy-MM-dd');
+                        attendanceData[dateKey] = {
+                            checkInTime: attendanceRecord.checkInTime,
+                            checkOutTime: attendanceRecord.checkOutTime,
+                            workedHours: attendanceRecord.workedHours || 'N/A',
+                            totalWorkedMinutes: attendanceRecord.totalWorkedMinutes || 0
+                        };
+                    }
+                } catch (error) {
+                    console.error(`Error fetching attendance for ${format(day, 'yyyy-MM-dd')}:`, error);
+                }
+            }
+
+            // Update the initialAttendance array with actual data
+            const updatedAttendance = initialAttendance.map(day => {
+                const dateKey = day.date;
+                if (attendanceData[dateKey]) {
+                    return {
+                        ...day,
+                        checkInTime: attendanceData[dateKey].checkInTime,
+                        checkOutTime: attendanceData[dateKey].checkOutTime,
+                        workedHours: attendanceData[dateKey].workedHours,
+                        totalWorkedMinutes: attendanceData[dateKey].totalWorkedMinutes
+                    };
+                }
+                return day;
+            });
+
+            setMonthlyAttendance(updatedAttendance);
+            // Reset to first page when month changes
+            setCurrentPage(1);
+        } catch (error) {
+            console.error('Error fetching monthly attendance:', error);
+            Alert.alert('Error', 'Failed to load monthly attendance records');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Function to fetch leave data for the entire month
+    const fetchMonthLeaveData = async (startDate, endDate) => {
+        if (!user) return;
+
+        try {
+            console.log('Fetching leave data for month:', format(startDate, 'yyyy-MM-dd'), 'to', format(endDate, 'yyyy-MM-dd'));
+
+            // Query approved leave requests for the current user
+            const leaveQuery = query(
+                collection(FIRESTORE_DB, 'leaveRequests'),
+                where('userId', '==', user.uid),
+                where('status', '==', 'Approved')
+            );
+
+            const querySnapshot = await getDocs(leaveQuery);
+            console.log('Found', querySnapshot.size, 'approved leave requests');
+
+            const leaveData = {};
+
+            // Process each leave request
+            querySnapshot.forEach(doc => {
+                const leave = doc.data();
+                console.log('Processing leave request:', leave);
+
+                // Convert string dates to Date objects
+                const leaveStartDate = new Date(leave.startDate);
+                const leaveEndDate = new Date(leave.endDate);
+
+                console.log('Leave period:', format(leaveStartDate, 'yyyy-MM-dd'), 'to', format(leaveEndDate, 'yyyy-MM-dd'));
+
+                // Mark all days in the leave period
+                const currentDate = new Date(leaveStartDate);
+                while (currentDate <= leaveEndDate) {
+                    const dateStr = format(currentDate, 'yyyy-MM-dd');
+
+                    // Check if the leave day is within the selected month
+                    if (currentDate >= startDate && currentDate <= endDate) {
+                        leaveData[dateStr] = leave.leaveType; // Store the actual leaveType
+                        console.log('Marked leave day:', dateStr, 'Type:', leave.leaveType);
+                    }
+
+                    // Move to next day
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+            });
+
+            console.log('Final leave days data for month:', leaveData);
+            setLeaveDays(leaveData);
+        } catch (error) {
+            console.error('Error fetching leave data for month:', error);
+        }
+    };
+
+    // Function to go to current month
+    const goToCurrentMonth = () => {
+        setSelectedMonth(new Date());
+    };
+
+    // Function to go to previous month
+    const goToPreviousMonth = () => {
+        setSelectedMonth(prevMonth => {
+            const newMonth = new Date(prevMonth);
+            newMonth.setMonth(newMonth.getMonth() - 1);
+            return newMonth;
+        });
+    };
+
+    // Function to go to next month
+    const goToNextMonth = () => {
+        setSelectedMonth(prevMonth => {
+            const newMonth = new Date(prevMonth);
+            newMonth.setMonth(newMonth.getMonth() + 1);
+            return newMonth;
+        });
+    };
+
+    // Function to export attendance records as Excel file
+    const exportAttendanceRecords = async () => {
+        try {
+            setIsLoading(true);
+
+            // Determine which data to export based on current view
+            const dataToExport = viewType === 'weekly' ? weeklyAttendance : monthlyAttendance;
+
+            if (!dataToExport || dataToExport.length === 0) {
+                Alert.alert('No Data', 'There are no attendance records to export.');
+                setIsLoading(false);
+                return;
+            }
+
+            // Create worksheet data
+            const wsData = [
+                ['Day', 'Date', 'Check-In', 'Check-Out', 'Worked Hours'] // Header row
+            ];
+
+            // Add data rows
+            dataToExport.forEach(record => {
+                // Format values for Excel
+                const isWeekend = record.dayOfWeek === 'Sat' || record.dayOfWeek === 'Sun';
+                const isLeaveDay = leaveDays[record.date] === true;
+                const hasCheckedIn = record.checkInTime !== null;
+                const hasCheckedOut = record.checkOutTime !== null;
+
+                let checkInValue = hasCheckedIn ? formatTimeOnly(record.checkInTime) :
+                                  isLeaveDay ? 'L' : isWeekend ? 'H' : '-';
+                let checkOutValue = hasCheckedOut ? formatTimeOnly(record.checkOutTime) :
+                                   isLeaveDay ? 'L' : isWeekend ? 'H' : '-';
+                let hoursValue = hasCheckedIn && hasCheckedOut ? record.workedHours :
+                               isLeaveDay ? 'L' : isWeekend ? 'H' : '-';
+
+                wsData.push([
+                    record.dayOfWeek,
+                    record.formattedDate,
+                    checkInValue,
+                    checkOutValue,
+                    hoursValue
+                ]);
+            });
+
+            // Create workbook and worksheet
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
+
+            // Define styles for different row types
+            const headerStyle = { fill: { fgColor: { rgb: "007AFF" }, patternType: "solid" }, font: { color: { rgb: "FFFFFF" }, bold: true } };
+            const evenRowStyle = { fill: { fgColor: { rgb: "F9F9F9" }, patternType: "solid" } };
+            const leaveDayStyle = { fill: { fgColor: { rgb: "FFEBEE" }, patternType: "solid" } };
+            const weekendWorkStyle = { fill: { fgColor: { rgb: "E3F2FD" }, patternType: "solid" } };
+            const partialDayStyle = { fill: { fgColor: { rgb: "FFF3E0" }, patternType: "solid" } };
+
+            // Apply header style
+            const headerRange = XLSX.utils.decode_range(ws['!ref']);
+            for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+                const cellRef = XLSX.utils.encode_cell({ r: 0, c: C });
+                if (!ws[cellRef]) continue;
+                if (!ws[cellRef].s) ws[cellRef].s = {};
+                Object.assign(ws[cellRef].s, headerStyle);
+            }
+
+            // Apply row styles based on conditions
+            dataToExport.forEach((record, idx) => {
+                const rowIdx = idx + 1; // +1 because header is row 0
+                const isWeekend = record.dayOfWeek === 'Sat' || record.dayOfWeek === 'Sun';
+                const isLeaveDay = leaveDays[record.date] === true;
+                const hasCheckedIn = record.checkInTime !== null;
+                const hasCheckedOut = record.checkOutTime !== null;
+
+                // Calculate worked hours for partial day check
+                let workedHoursNumeric = 0;
+                if (record.totalWorkedMinutes) {
+                    workedHoursNumeric = record.totalWorkedMinutes / 60;
+                }
+
+                const isPartialDay = hasCheckedIn && hasCheckedOut &&
+                                    workedHoursNumeric > 0 &&
+                                    workedHoursNumeric <= 4;
+
+                // Determine which style to apply based on priority
+                let rowStyle;
+                if (isLeaveDay && (hasCheckedIn || hasCheckedOut)) {
+                    rowStyle = leaveDayStyle;
+                } else if (isWeekend && (hasCheckedIn || hasCheckedOut)) {
+                    rowStyle = weekendWorkStyle;
+                } else if (!isWeekend && !isLeaveDay && isPartialDay) {
+                    rowStyle = partialDayStyle;
+                } else if (isLeaveDay) {
+                    rowStyle = leaveDayStyle;
+                } else if (rowIdx % 2 === 0) {
+                    rowStyle = evenRowStyle;
+                }
+
+                // Apply the style to each cell in the row
+                if (rowStyle) {
+                    for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+                        const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: C });
+                        if (!ws[cellRef]) ws[cellRef] = { v: "" };
+                        if (!ws[cellRef].s) ws[cellRef].s = {};
+                        Object.assign(ws[cellRef].s, rowStyle);
+                    }
+                }
+            });
+
+            // Generate Excel file
+            const fileType = 'xlsx';
+            const fileName = `Attendance_${viewType === 'weekly' ? 'Weekly' : 'Monthly'}_${new Date().getTime()}.${fileType}`;
+
+            // Write the workbook as a base64 string
+            const wbout = XLSX.write(wb, { bookType: fileType, type: 'base64' });
+
+            // Create a temporary file path
+            const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+
+            // Write the base64 data to a file
+            await FileSystem.writeAsStringAsync(filePath, wbout, {
+                encoding: FileSystem.EncodingType.Base64
+            });
+
+            // Check if sharing is available
+            const isSharingAvailable = await Sharing.isAvailableAsync();
+
+            if (isSharingAvailable) {
+                // Share the file
+                await Sharing.shareAsync(filePath, {
+                    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    dialogTitle: 'Export Attendance Records',
+                    UTI: 'com.microsoft.excel.xlsx'
+                });
+
+                Alert.alert(
+                    'Export Successful',
+                    'Your attendance records have been exported successfully.'
+                );
+            } else {
+                Alert.alert(
+                    'Sharing Not Available',
+                    'Sharing is not available on this device.'
+                );
+            }
+        } catch (error) {
+            console.error('Error exporting attendance records:', error);
+            Alert.alert('Export Failed', 'There was an error exporting the attendance records.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleLogout = () => {
+        // Reset all states
+        setCheckInTime(null);
+        setCheckOutTime(null);
+        setWorkedHours('');
+        setTotalWorkedMinutes(0);
+        setIsCheckInDisabled(false);
+        setIsCheckOutDisabled(true);
+
         FIREBASE_AUTH.signOut()
             .then(() => {
                 console.log('User logged out');
@@ -367,6 +773,149 @@ export default function Attendance({ navigation }) {
             .catch((error) => {
                 console.error('Error logging out:', error);
             });
+    };
+
+    // function to format worked hours 
+    const formatHoursToHMS = (hoursDecimal) => {
+        if (typeof hoursDecimal !== 'number' || isNaN(hoursDecimal) || hoursDecimal < 0) {
+            return '-'; 
+        }
+
+        const totalMinutes = Math.round(hoursDecimal * 60);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+
+        if (hours === 0 && minutes === 0) {
+            return '0h 0m';
+        } else if (hours === 0) {
+            return `${minutes}m`;
+        } else if (minutes === 0) {
+            return `${hours}h`;
+        } else {
+            return `${hours}h ${minutes}m`;
+        }
+    };
+
+    const renderAttendanceRow = ({ item, index }) => {
+        const isWeekend = item.dayOfWeek === 'Sun' || item.dayOfWeek === 'Sat';
+        const isHoliday = item.isHoliday;
+        const isLeaveDay = leaveDays[item.date] === true;
+        const hasCheckedIn = item.checkInTime !== null && item.checkInTime !== undefined && item.checkInTime !== '';
+        const hasCheckedOut = item.checkOutTime !== null && item.checkOutTime !== undefined && item.checkOutTime !== '';
+
+        // Calculate worked hours in numeric form for comparison
+        let workedHoursNumeric = 0;
+        if (item.totalWorkedMinutes) {
+            workedHoursNumeric = item.totalWorkedMinutes / 60;
+        }
+
+        // Check if it's a partial day (≤ 4 hours worked)
+        const isPartialDay = hasCheckedIn && hasCheckedOut &&
+                            workedHoursNumeric > 0 &&
+                            workedHoursNumeric <= 4;
+
+        // Determine what to display for check-in
+        let checkInDisplay;
+        if (hasCheckedIn) {
+            checkInDisplay = formatTimeOnly(item.checkInTime);
+        } else if (isLeaveDay) {
+            checkInDisplay = 'L';
+        } else if (isHoliday) {
+            checkInDisplay = 'H';
+        } else if (isWeekend) {
+            checkInDisplay = 'H';
+        } else {
+            checkInDisplay = '-';
+        }
+
+        // Determine what to display for check-out
+        let checkOutDisplay;
+        if (hasCheckedOut) {
+            checkOutDisplay = formatTimeOnly(item.checkOutTime);
+        } else if (isLeaveDay) {
+            checkOutDisplay = 'L';
+        } else if (isHoliday) {
+            checkOutDisplay = 'H';
+        } else if (isWeekend) {
+            checkOutDisplay = 'H';
+        } else {
+            checkOutDisplay = '-';
+        }
+
+        // Determine what to display for worked hours
+        let hoursDisplay;
+        if (hasCheckedIn && hasCheckedOut) {
+            // hoursDisplay = item.workedHours != 'N/A' ? item.workedHours: '-'
+
+            // func to format the numeric worked hours
+            hoursDisplay = formatHoursToHMS(item.workedHours); 
+        } else if (isLeaveDay) {
+            hoursDisplay = 'L';
+        } else if (isHoliday) {
+            hoursDisplay = 'H';
+        } else if (isWeekend) {
+            hoursDisplay = 'H';
+        } else {
+            hoursDisplay = '-';
+        }
+
+        // Determine row style based on various conditions
+        let rowStyle = [styles.tableRow];
+
+        // Apply background colors based on priority
+        if (isLeaveDay && (hasCheckedIn || hasCheckedOut)) {
+            // Leave day with check-in/out - light red background
+            rowStyle.push(styles.leaveDayRow);
+        } else if (isHoliday && (hasCheckedIn || hasCheckedOut)) {
+            // Holiday with check-in/out - light blue background
+            rowStyle.push(styles.holidayWorkRow);
+        } else if (isWeekend && (hasCheckedIn || hasCheckedOut)) {
+            // Weekend with check-in/out - light blue background
+            rowStyle.push(styles.weekendWorkRow);
+        } else if (!isWeekend && !isHoliday && !isLeaveDay && isPartialDay) {
+            // Partial day (≤ 4 hours) on regular weekday - light orange background
+            rowStyle.push(styles.partialDayRow);
+        } else if (isLeaveDay) {
+            // Leave day without check-in/out - light red background
+            rowStyle.push(styles.leaveDayRow);
+        } else if (isHoliday) {
+            // Holiday without check-in/out - light blue background
+            rowStyle.push(styles.holidayRow);
+        } else if (index % 2 === 0) {
+            // Even rows - light gray
+            rowStyle.push(styles.evenRow);
+        } else {
+            // Odd rows - white
+            rowStyle.push(styles.oddRow);
+        }
+
+        // Determine text style based on the content
+        const getTextStyle = (content) => {
+            if (content === 'L' && isLeaveDay) {
+                return styles.leaveText;
+            } else if (content === 'H' && (isHoliday || isWeekend)) {
+                return styles.weekendText;
+            } else if (isPartialDay && !isLeaveDay && !isHoliday && !isWeekend) {
+                return styles.partialDayText;
+            }
+            return null;
+        };
+
+        return (
+            <View key={item.date} style={rowStyle}>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.dayOfWeek}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.formattedDate}</Text>
+                <Text style={[styles.tableCell, { flex: 2 }, getTextStyle(checkInDisplay)]}>
+                    {checkInDisplay}
+                </Text>
+                <Text style={[styles.tableCell, { flex: 2 }, getTextStyle(checkOutDisplay)]}>
+                    {checkOutDisplay}
+                </Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }, getTextStyle(hoursDisplay)]}>
+                    {hoursDisplay}
+                </Text>
+            </View>
+        );
     };
 
     return (
@@ -448,52 +997,154 @@ export default function Attendance({ navigation }) {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Weekly Attendance Records Section */}
+                    {/* Attendance Records Section */}
                     <View style={styles.sectionContainer}>
                         <View style={styles.sectionHeader}>
                             <Icon name="calendar" type="material-community" size={24} color="#007AFF" />
-                            <Text style={styles.sectionTitle}>Weekly Attendance Record</Text>
+                            <TouchableOpacity
+                                style={styles.viewTypeButton}
+                                onPress={() => setModalVisible(true)}
+                            >
+                                <Text style={styles.sectionTitle}>
+                                    {viewType === 'weekly' ? 'Weekly Attendance Record' : 'Monthly Attendance Record'}
+                                </Text>
+                                <Icon name="chevron-down" type="material-community" size={20} color="#007AFF" />
+                            </TouchableOpacity>
                         </View>
 
-                        {/* Week Navigation */}
-                        <View style={styles.weekNavigation}>
+                        {/* View Type Selection Modal */}
+                        <Modal
+                            animationType="fade"
+                            transparent={true}
+                            visible={modalVisible}
+                            onRequestClose={() => setModalVisible(false)}
+                        >
                             <TouchableOpacity
-                                style={styles.weekNavButton}
-                                onPress={goToPreviousWeek}
+                                style={styles.modalOverlay}
+                                activeOpacity={1}
+                                onPress={() => setModalVisible(false)}
                             >
-                                <Icon name="chevron-left" type="material-community" size={24} color="#007AFF" />
-                            </TouchableOpacity>
+                                <View style={styles.modalContent}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.modalOption,
+                                            viewType === 'weekly' && styles.selectedOption
+                                        ]}
+                                        onPress={() => {
+                                            setViewType('weekly');
+                                            setModalVisible(false);
+                                        }}
+                                    >
+                                        <Text style={[
+                                            styles.modalOptionText,
+                                            viewType === 'weekly' && styles.selectedOptionText
+                                        ]}>
+                                            Weekly Attendance Record
+                                        </Text>
+                                    </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={styles.currentWeekButton}
-                                onPress={goToCurrentWeek}
-                            >
-                                <Text style={styles.currentWeekText}>
-                                    {(() => {
-                                        try {
-                                            const weekDate = new Date(selectedWeek);
-                                            // Ensure valid date
-                                            if (isNaN(weekDate.getTime())) {
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.modalOption,
+                                            viewType === 'monthly' && styles.selectedOption
+                                        ]}
+                                        onPress={() => {
+                                            setViewType('monthly');
+                                            fetchMonthlyAttendance();
+                                            setModalVisible(false);
+                                        }}
+                                    >
+                                        <Text style={[
+                                            styles.modalOptionText,
+                                            viewType === 'monthly' && styles.selectedOptionText
+                                        ]}>
+                                            Monthly Attendance Record
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </TouchableOpacity>
+                        </Modal>
+
+                        {/* Conditional Navigation based on view type */}
+                        {viewType === 'weekly' ? (
+                            // Weekly View Navigation
+                            <View style={styles.weekNavigation}>
+                                <TouchableOpacity
+                                    style={styles.weekNavButton}
+                                    onPress={goToPreviousWeek}
+                                >
+                                    <Icon name="chevron-left" type="material-community" size={24} color="#007AFF" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.currentWeekButton}
+                                    onPress={goToCurrentWeek}
+                                >
+                                    <Text style={styles.currentWeekText}>
+                                        {(() => {
+                                            try {
+                                                const weekDate = new Date(selectedWeek);
+                                                // Ensure valid date
+                                                if (isNaN(weekDate.getTime())) {
+                                                    return 'Current Week';
+                                                }
+                                                const start = startOfWeek(weekDate, { weekStartsOn: 0 });
+                                                const end = endOfWeek(weekDate, { weekStartsOn: 0 });
+                                                return `${format(start, 'dd MMM')} - ${format(end, 'dd MMM yyyy')}`;
+                                            } catch (error) {
+                                                console.error('Error formatting week dates:', error);
                                                 return 'Current Week';
                                             }
-                                            const start = startOfWeek(weekDate, { weekStartsOn: 0 });
-                                            const end = endOfWeek(weekDate, { weekStartsOn: 0 });
-                                            return `${format(start, 'dd MMM')} - ${format(end, 'dd MMM yyyy')}`;
-                                        } catch (error) {
-                                            console.error('Error formatting week dates:', error);
-                                            return 'Current Week';
-                                        }
-                                    })()}
-                                </Text>
-                            </TouchableOpacity>
+                                        })()}
+                                    </Text>
+                                </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={styles.weekNavButton}
-                                onPress={goToNextWeek}
-                            >
-                                <Icon name="chevron-right" type="material-community" size={24} color="#007AFF" />
-                            </TouchableOpacity>
-                        </View>
+                                <TouchableOpacity
+                                    style={styles.weekNavButton}
+                                    onPress={goToNextWeek}
+                                >
+                                    <Icon name="chevron-right" type="material-community" size={24} color="#007AFF" />
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            // Monthly View Navigation
+                            <View style={styles.weekNavigation}>
+                                <TouchableOpacity
+                                    style={styles.weekNavButton}
+                                    onPress={goToPreviousMonth}
+                                >
+                                    <Icon name="chevron-left" type="material-community" size={24} color="#007AFF" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.currentWeekButton}
+                                    onPress={goToCurrentMonth}
+                                >
+                                    <Text style={styles.currentWeekText}>
+                                        {(() => {
+                                            try {
+                                                const monthDate = new Date(selectedMonth);
+                                                // Ensure valid date
+                                                if (isNaN(monthDate.getTime())) {
+                                                    return 'Current Month';
+                                                }
+                                                return format(monthDate, 'MMMM yyyy');
+                                            } catch (error) {
+                                                console.error('Error formatting month date:', error);
+                                                return 'Current Month';
+                                            }
+                                        })()}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.weekNavButton}
+                                    onPress={goToNextMonth}
+                                >
+                                    <Icon name="chevron-right" type="material-community" size={24} color="#007AFF" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
 
                         {/* Attendance Records Table */}
                         {isLoading ? (
@@ -509,73 +1160,69 @@ export default function Attendance({ navigation }) {
                                     <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Hours</Text>
                                 </View>
 
-                                {/* Table Rows */}
-                                {weeklyAttendance.map((record, index) => {
-                                    // Check if it's a weekend (Saturday or Sunday)
-                                    const isWeekend = record.dayOfWeek === 'Sat' || record.dayOfWeek === 'Sun';
+                                {/* Table Rows - based on view type */}
+                                {viewType === 'weekly' ? (
 
-                                    // Determine what to display for check-in
-                                    let checkInDisplay;
-                                    if (record.checkInTime) {
-                                        // If checked in, always show the time
-                                        checkInDisplay = formatTimeOnly(record.checkInTime);
-                                    } else {
-                                        // If not checked in, show "H" for weekends, "-" for weekdays
-                                        checkInDisplay = isWeekend ? 'H' : '-';
-                                    }
-
-                                    // Determine what to display for check-out
-                                    let checkOutDisplay;
-                                    if (record.checkOutTime) {
-                                        // If checked out, always show the time
-                                        checkOutDisplay = formatTimeOnly(record.checkOutTime);
-                                    } else {
-                                        // If not checked out, show "H" for weekends, "-" for weekdays
-                                        checkOutDisplay = isWeekend ? 'H' : '-';
-                                    }
-
-                                    // Determine what to display for worked hours
-                                    let hoursDisplay;
-                                    if (record.workedHours !== 'N/A') {
-                                        // If there are worked hours, show them
-                                        hoursDisplay = record.workedHours;
-                                    } else {
-                                        // If no worked hours, show "H" for weekends, "-" for weekdays
-                                        hoursDisplay = isWeekend ? 'H' : '-';
-                                    }
-
+                                    // Weekly Attendance Records
+                                    weeklyAttendance.length > 0 ? (
+                                    weeklyAttendance.map((record) => {
+                                        return renderAttendanceRow({ item: record});
+                                    })  
+                                ) :  (
+                                    <View style={styles.noDataContainer}>
+                                        <Text style={styles.noDataText}>No attendance records for the selected week.</Text>
+                                    </View>
+                                )
+                            ) : (
+                                // Monthly Attendance Records with Pagination
+                                (() => {
+                                    // Calculate pagination
+                                    const indexOfLastRecord = currentPage * recordsPerPage;
+                                    const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
+                                    const currentRecords = monthlyAttendance.slice(indexOfFirstRecord, indexOfFirstRecord + recordsPerPage);
+                                    const totalPages = Math.ceil(monthlyAttendance.length / recordsPerPage);
                                     return (
-                                        <View
-                                            key={record.date}
-                                            style={[
-                                                styles.tableRow,
-                                                index % 2 === 0 ? styles.evenRow : styles.oddRow
-                                            ]}
-                                        >
-                                            <Text style={[styles.tableCell, { flex: 1.5 }]}>{record.dayOfWeek}</Text>
-                                            <Text style={[styles.tableCell, { flex: 1.5 }]}>{record.formattedDate}</Text>
-                                            <Text style={[styles.tableCell, { flex: 2 }]}>
-                                                {checkInDisplay}
-                                            </Text>
-                                            <Text style={[styles.tableCell, { flex: 2 }]}>
-                                                {checkOutDisplay}
-                                            </Text>
-                                            <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                                                {hoursDisplay}
-                                            </Text>
-                                        </View>
+                                        <>
+                                            {/* Monthly records */}
+                                            {currentRecords.map((record) => {
+                                                return renderAttendanceRow({ item: record});
+                                            })}
+                                            {/* Pagination Controls */}
+                                            <View style={styles.paginationContainer}>
+                                                <TouchableOpacity
+                                                    style={[styles.paginationButton, currentPage === 1 && styles.disabledButton]}
+                                                    onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                                    disabled={currentPage === 1}
+                                                >
+                                                    <Text style={styles.paginationButtonText}>Previous</Text>
+                                                </TouchableOpacity>
+                                                <Text style={styles.paginationText}>
+                                                    Page {currentPage} of {totalPages}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    style={[styles.paginationButton, currentPage === totalPages && styles.disabledButton]}
+                                                    onPress={() => setCurrentPage(prev =>
+                                                        Math.min(totalPages, prev + 1)
+                                                    )}
+                                                    disabled={currentPage === totalPages}
+                                                >
+                                                    <Text style={styles.paginationButtonText}>Next</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </>
                                     );
-                                })}
+                                })()
+                            )}
                             </View>
                         )}
 
                         {/* Export Button */}
                         <TouchableOpacity
                             style={styles.exportButton}
-                            onPress={() => Alert.alert('Export', 'Export functionality will be implemented soon!')}
+                            onPress={exportAttendanceRecords}
                         >
                             <View style={styles.buttonContent}>
-                                <Icon name="download" type="material-community" size={20} color="white" />
+                                <Icon name="file-export" type="material-community" size={20} color="white" />
                                 <Text style={styles.buttonText}>Export Records</Text>
                             </View>
                         </TouchableOpacity>
@@ -651,12 +1298,6 @@ const styles = StyleSheet.create({
         color: '#666',
         marginBottom: 0,
     },
-    // timeStatusLabelSecondLine: {
-    //     fontSize: 14,
-    //     color: '#666',
-    //     fontWeight: 'bold',
-    //     marginBottom: 3,
-    // },
     timeStatusValue: {
         fontSize: 16,
         fontWeight: '600',
@@ -691,7 +1332,7 @@ const styles = StyleSheet.create({
     },
     buttonText: {
         color: 'white',
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: 'bold',
         marginLeft: 8,
     },
@@ -736,8 +1377,8 @@ const styles = StyleSheet.create({
         marginBottom: 15,
     },
     weekNavButton: {
-        padding: 8,
-        borderRadius: 8,
+        padding: 5,
+        borderRadius: 5,
         backgroundColor: '#f0f0f0',
     },
     currentWeekButton: {
@@ -787,6 +1428,27 @@ const styles = StyleSheet.create({
     oddRow: {
         backgroundColor: 'white',
     },
+    leaveDayRow: {
+        backgroundColor: '#FFEBEE',
+    },
+    leaveText: {
+        color: '#F44336',
+        fontWeight: 'bold',
+    },
+    weekendWorkRow: {
+        backgroundColor: '#E3F2FD',
+    },
+    weekendText: {
+        color: '#007AFF',
+        fontWeight: 'bold',
+    },
+    partialDayRow: {
+        backgroundColor: '#FFF3E0',
+    },
+    partialDayText: {
+        color: '#FF9800',
+        fontWeight: 'bold',
+    },
     tableCell: {
         fontSize: 13,
         textAlign: 'center',
@@ -805,5 +1467,105 @@ const styles = StyleSheet.create({
     // Loading indicator
     loader: {
         marginVertical: 20,
+    },
+
+    // View type button
+    viewTypeButton: {
+        flexDirection: 'row',
+        alignItems: 'justify-center',
+        marginLeft: 10,
+        paddingVertical: 5,
+        paddingHorizontal: 5,
+        borderRadius: 5,
+        backgroundColor: '#f0f0f0',
+    },
+
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContent: {
+        width: '80%',
+        backgroundColor: 'white',
+        borderRadius: 10,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    modalOption: {
+        paddingVertical: 15,
+        paddingHorizontal: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+    },
+    selectedOption: {
+        backgroundColor: '#E3F2FD',
+    },
+    modalOptionText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    selectedOptionText: {
+        color: '#007AFF',
+        fontWeight: 'bold',
+    },
+
+    // Pagination styles
+    paginationContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        // marginTop: 10,
+        paddingTop: 5,
+        borderTopWidth: 1,
+        borderTopColor: '#ddd',
+    },
+    paginationButton: {
+        backgroundColor: '#007AFF',
+        paddingVertical: 8,
+        paddingHorizontal: 15,
+        borderRadius: 5,
+    },
+    paginationButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        marginLeft: 5,
+    },
+    paginationText: {
+        fontSize: 14,
+        color: '#666',
+    },
+
+    // No data styles
+    noDataContainer: {
+        padding: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f9f9f9',
+        borderRadius: 8,
+        marginVertical: 10,
+    },
+    noDataText: {
+        fontSize: 16,
+        color: '#666',
+        textAlign: 'center',
+        fontStyle: 'italic',
+    },
+
+    // New styles for holiday rows
+    holidayWorkRow: {
+        backgroundColor: '#E3F2FD',
+    },
+    holidayRow: {
+        backgroundColor: '#E3F2FD',
     },
 });

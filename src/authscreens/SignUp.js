@@ -4,9 +4,11 @@ import { FIREBASE_AUTH,FIRESTORE_DB } from '../firebaseConfig';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { Ionicons } from "@expo/vector-icons";
 import { doc, setDoc } from 'firebase/firestore';
+import { useNavigation } from '@react-navigation/native';
+// import { router } from 'expo-router';
 // import * as Font from 'expo-font';
 
-export default function SignUp({ navigation }) {
+export default function SignUp() {
 
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
@@ -16,6 +18,8 @@ export default function SignUp({ navigation }) {
     const [messageType, setMessageType] = useState('');
     const [passwordVisible, setPasswordVisible] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    const navigation = useNavigation();
 
     const validateEmail = (email) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

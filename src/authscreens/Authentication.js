@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, BackHandler } from 'react-native';
 import { FIREBASE_AUTH } from '../firebaseConfig';
 import { sendEmailVerification, checkActionCode } from 'firebase/auth';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
-export default function Authentication({ navigation, route }) {
-    const { email } = route.params;
+export default function Authentication() {
+    const navigation = useNavigation();
+    const route = useRoute();
+    const { email } = route.params || {};
     const [message, setMessage] = useState('');
     const [messageType, setMessageType] = useState('');
+    const [code, setCode] = useState('');
 
     useEffect(() => {
         const backAction = () => true; 
-      
         const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
-      
         return () => backHandler.remove(); 
       }, []);
 

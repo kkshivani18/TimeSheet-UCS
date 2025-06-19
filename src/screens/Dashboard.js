@@ -39,6 +39,7 @@ export default function Dashboard({ navigation }) {
     const [pickerMode, setPickerMode] = useState('date');
     const [username, setUsername] = useState('');
     const [taskCountsByDate, setTaskCountsByDate] = useState({});
+    const [paidHolidays, setPaidHolidays] = useState({});
 
     const user = FIREBASE_AUTH.currentUser;
 
@@ -59,8 +60,6 @@ export default function Dashboard({ navigation }) {
 
         fetchUserData();
     }, []);
-
-    // No need to fetch attendance data here anymore as it's moved to Attendance screen
 
     const handleMonthChange = (itemValue) => {
         setSelectedMonth(itemValue);
@@ -235,6 +234,29 @@ export default function Dashboard({ navigation }) {
         }
     };
 
+    useEffect(() => {
+        fetchPaidHolidays();
+    }, []);
+    
+    const fetchPaidHolidays = async () => {
+        try {
+            const currentYear = new Date().getFullYear();
+            const holidaysQuery = query(
+                collection(FIRESTORE_DB, 'paidHolidays'),
+                where('year', '==', currentYear)
+            );
+            const querySnapshot = await getDocs(holidaysQuery);
+            const holidaysMap = {};
+            querySnapshot.docs.forEach(doc => {
+                const holiday = doc.data();
+                holidaysMap[holiday.date] = holiday.description;
+            });
+            setPaidHolidays(holidaysMap);
+        } catch (error) {
+            console.error('Error fetching paid holidays:', error);
+        }
+    };
+
     const getCurrentMonthDays = () => {
         const markedDates = {};
 
@@ -250,32 +272,23 @@ export default function Dashboard({ navigation }) {
             };
         });
 
-        // Mark days with 8+ hours (480+ minutes) worked (green)
-        Object.keys(attendanceData).forEach(date => {
-            // Skip if this date is already marked as leave
-            if (markedDates[date]) {
-                return;
-            }
-
-            // Only mark days with 480+ minutes (8+ hours) worked
-            const minutes = attendanceData[date].totalWorkedMinutes;
-
-            // Convert to number to ensure proper comparison
-            const minutesNum = Number(minutes);
-
-            // Strict check: must be a number and >= 480
-            if (!isNaN(minutesNum) && minutesNum >= 480) {
-                markedDates[date] = {
+        // Mark paid holidays (blue)
+        Object.keys(paidHolidays).forEach(date => {
+            // Convert DD-MM-YYYY to YYYY-MM-DD for the calendar
+            const [day, month, year] = date.split('-');
+            const formattedDate = `${year}-${month}-${day}`;
+            
+            if (!markedDates[formattedDate]) {
+                markedDates[formattedDate] = {
                     selected: true,
-                    selectedColor: '#4CD964', // Green color for 8+ hours worked
+                    selectedColor: '#007AFF',
                     startingDay: true,
                     endingDay: true,
-                    color: '#4CD964',
+                    color: '#007AFF',
                     textColor: 'white',
                 };
             }
         });
-
         return markedDates;
     };
 
@@ -342,10 +355,6 @@ export default function Dashboard({ navigation }) {
             timestamp: new Date().getTime()
         });
     };
-
-    // Attendance functions moved to Attendance.js
-
-    // formatDateTime function moved to Attendance.js
 
     const fetchLeaveRequest = async () => {
         if(!user) return {};
@@ -536,8 +545,8 @@ export default function Dashboard({ navigation }) {
                         <Text style={styles.legendText}>Leave Day</Text>
                     </View>
                     <View style={styles.legendItem}>
-                        <View style={[styles.legendColor, { backgroundColor: '#4CD964' }]} />
-                        <Text style={styles.legendText}>Full Work Day</Text>
+                        <View style={[styles.legendColor, { backgroundColor: '#007AFF' }]} />
+                        <Text style={styles.legendText}>Paid Holiday</Text>
                     </View>
                 </View>
             </View>

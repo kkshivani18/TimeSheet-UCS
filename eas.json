@@ -1,0 +1,24 @@
+{
+  "cli": {
+    "version": ">= 16.8.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug",
+        "prebuildCommand": "mkdir -p android && cp eas-build.gradle android/build.gradle"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease",
+        "prebuildCommand": "mkdir -p android && cp eas-build.gradle android/build.gradle"
+      }
+    }
+  }
+}

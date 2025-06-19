@@ -3,6 +3,7 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import Dashboard from '../screens/Dashboard';
 import Tasks from '../screens/Tasks';
 import LeaveApplication from '../screens/LeaveApplication';
+import CompOff from '../screens/CompOff';
 import Attendance from '../screens/Attendance';
 import { Icon } from 'react-native-elements';
 
@@ -54,6 +55,14 @@ export default function DrawerNavigator() {
                 options={{
                     drawerLabel: 'Attendance',
                     drawerIcon: ({color}) => <Icon name="access-time" size={20} color={color} />
+                }}
+            />
+            <Drawer.Screen
+                name="CompOff"
+                component={CompOff}
+                options={{
+                    drawerLabel: 'CompOff',
+                    drawerIcon: ({color}) => <Icon name="event" size={20} color={color} />
                 }}
             />
         </Drawer.Navigator>

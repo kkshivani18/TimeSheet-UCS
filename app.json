@@ -1,19 +1,30 @@
 {
   "expo": {
     "name": "TimeSheet",
-    "slug": "TimeSheet",
+    "slug": "timesheet",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "myapp",
+    
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
+    "sdkVersion": "53.0.0",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.upvote.timesheet",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location for check-in and check-out functionality."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.upvote.timesheet",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -22,18 +33,15 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ]
+      "expo-font",
+      "expo-web-browser",
+      "expo-location"
     ],
-    "experiments": {
-      "typedRoutes": true
-    }
+    "extra": {
+      "eas": {
+        "projectId": "1cae5bd7-b608-469d-8645-eb4cbbf8947a"
+      }
+    },
+    "owner": "shivanikk"
   }
 }

@@ -1,19 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
 import { signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { getDoc, doc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
-// import { GoogleSignin } from '@react-native-google-signin/google-signin';
-// import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+// import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 
-export default function Login({ navigation }) {
+export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
     const [messageType, setMessageType] = useState('');
     const [passwordVisible, setPasswordVisible] = useState(false);
     const [role, setRole] = useState('');
+
+    const navigation = useNavigation();
 
     const handleLogin = async () => {
         try {
@@ -31,9 +33,9 @@ export default function Login({ navigation }) {
 
                     // Navigate based on role
                     if (userRole === 'admin') {
-                        navigation.navigate('Admin');
+                        navigation.replace('Admin');
                     } else {
-                        navigation.navigate('Dashboard');
+                        navigation.replace('Dashboard');
                     }
 
                     setMessage('You have successfully logged in');
@@ -48,6 +50,7 @@ export default function Login({ navigation }) {
                 await sendEmailVerification(user);
             }
         } catch (error) {
+            console.log('Login error:', error);
             if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
                 setMessage('Error logging in: User not found');
                 setMessageType('error');
@@ -57,57 +60,6 @@ export default function Login({ navigation }) {
             }
         }
     };
-
-    // GoogleSignin.configure({
-    //     webClientId: "YOUR_WEB_CLIENT_ID",  // Replace with your Firebase Web Client ID
-    // });
-
-    // const handleGoogleSignIn = async () => {
-    //     try {
-    //         await GoogleSignin.hasPlayServices();
-    //         const { idToken } = await GoogleSignin.signIn();
-
-    //         // Create a Google credential with the token
-    //         const googleCredential = GoogleAuthProvider.credential(idToken);
-
-    //         // Sign-in the user with Firebase authentication
-    //         const userCredential = await signInWithCredential(FIREBASE_AUTH, googleCredential);
-    //         const user = userCredential.user;
-
-    //         console.log('User signed in with Google:', user);
-
-    //         // Check if the user exists in Firestore
-    //         const userDocRef = doc(FIRESTORE_DB, 'users', user.uid);
-    //         const userDoc = await getDoc(userDocRef);
-
-    //         let userRole = 'user'; // Default role
-
-    //         if (userDoc.exists()) {
-    //             userRole = userDoc.data().role;
-    //         } else {
-    //             // New user, set up Firestore data
-    //             await setDoc(userDocRef, {
-    //                 uid: user.uid,
-    //                 email: user.email,
-    //                 displayName: user.displayName,
-    //                 role: userRole, // Default role
-    //                 createdAt: new Date().toISOString()
-    //             });
-    //         }
-
-    //         // Navigate based on role
-    //         if (userRole === 'admin') {
-    //             navigation.navigate('Admin');
-    //         } else {
-    //             navigation.navigate('Dashboard');
-    //         }
-
-    //     } catch (error) {
-    //         console.error('Google Sign In Error:', error);
-    //         setMessage('Failed to sign in with Google');
-    //         setMessageType('error');
-    //     }
-    // };
 
     return (
         <View style={styles.container}>
@@ -152,11 +104,6 @@ export default function Login({ navigation }) {
             <View style={styles.buttonContainer}>
                 <Button title="Log In" onPress={handleLogin} />
             </View>
-            {/* <Text style={styles.orText}>________________ Or With ________________</Text> */}
-            {/* <View style={styles.buttonContainer}>
-                <Button title="Signin with Google" onPress={() => {}} /> */}
-                    {/* {handleGoogleSignIn} */}
-            {/* </View> */}
 
             <Text style={styles.footerText}>
                 Don't have an account yet?
