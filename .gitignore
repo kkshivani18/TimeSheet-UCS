@@ -43,5 +43,12 @@ app-example
 # apk files
 *.apk
 
-# android
-/android
+# Android/IntelliJ
+android/.gradle/
+android/app/build/
+android/build/
+*.iml
+*.apk
+*.keystore
+*.jks
+key.properties
