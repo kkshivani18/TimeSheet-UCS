@@ -41,7 +41,7 @@ app-example
 .env
 
 # apk files
-.apk
+*.apk
 
 # android
 /android
