@@ -5,7 +5,7 @@ import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, get
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, addMonths, subMonths, startOfDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, addMonths, subMonths, startOfDay, endOfDay } from 'date-fns';
 
 export default function CompOff({ navigation }) {
     const [startDate, setStartDate] = useState(new Date());
@@ -170,13 +170,6 @@ export default function CompOff({ navigation }) {
                         };
                         records.push(record);
                         console.log(`  Record added: ${JSON.stringify(record)}`);
-                        
-                        // Calculate total hours
-                        // if (overtimeHours > 0) {
-                        //     totalHours += overtimeHours;
-                        // } else if (data.workedHours) {
-                        //     totalHours += parseFloat(data.workedHours);
-                        // }
                     } else {
                         console.log(`  Conditions not met for adding record for ${dateStr}`);
                     }
@@ -188,7 +181,6 @@ export default function CompOff({ navigation }) {
             setMonthlyRecords(records);
             // setTotalAvailableHours(totalHours);
             console.log(`Final monthlyRecords length: ${records.length}`);
-            console.log(`Final totalAvailableHours: ${totalAvailableHours.toFixed(2)}`);
         } catch (error) {
             console.error('Error fetching monthly records:', error);
         }
@@ -290,13 +282,12 @@ export default function CompOff({ navigation }) {
             let totalApprovedHours = 0;
             
             approvedCompOffSnapshot.forEach(doc => {
-                totalApprovedHours += parseFloat(doc.data().duration || 0);
+                const compOff = doc.data();
+                const compOffStart = new Date(compOff.startDateTime);
+                if (compOffStart >= startOfDay(startDate) && compOffStart <= endOfDay(endDate)) {
+                    totalApprovedHours += parseFloat(compOff.duration || 0);
+                }
             });
-
-            // approvedCompOffSnapshot.forEach(doc => {
-            //     const duration = parseFloat(doc.data().duration || 0);
-            //     totalApprovedHours += duration;
-            // });
 
             // available hours (total earned - approved)
             return totalHours - totalApprovedHours;
