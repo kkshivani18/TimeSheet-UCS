@@ -54,21 +54,6 @@ export default function Tasks({ route, navigation }) {
     const showMenu = !(isAdminView || userRole === "admin");
     const user = FIREBASE_AUTH.currentUser;
 
-    // useEffect(() => {
-    //     if (route.params?.date) {
-    //         setSelectedDate(route.params.date);
-    //     }
-    //     if (route.params?.isAdminView) {
-    //         setIsAdminView(true);
-    //         setViewingUserId(route.params.userId);
-    //         // setViewingUserId(route.params.userId || FIREBASE_AUTH.currentUser?.uid);
-    //         setViewingUsername(route.params.username);
-    //     }
-    //     // else{
-    //     //     setViewingUserId(FIREBASE_AUTH.currentUser?.uid);
-    //     // }
-    // }, [route.params]);
-
     useEffect(() => {
         if (route.params?.date) {
             setSelectedDate(route.params.date);

@@ -17,6 +17,12 @@ export default function Login() {
     const navigation = useNavigation();
 
     const handleLogin = async () => {
+        if (!FIREBASE_AUTH) {
+            console.log('FIREBASE_AUTH is undefined');
+            setMessage('Authentication service not initialized');
+            setMessageType('error');
+            return;
+        }
         try {
             const userCredential = await signInWithEmailAndPassword(FIREBASE_AUTH, email, password);
             const user = userCredential.user;
