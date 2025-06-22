@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Image, TouchableOpacity, Alert } from 'react-native';
-import { FIREBASE_AUTH,FIRESTORE_DB } from '../firebaseConfig';
+import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { Ionicons } from "@expo/vector-icons";
 import { doc, setDoc } from 'firebase/firestore';
@@ -9,7 +9,6 @@ import { useNavigation } from '@react-navigation/native';
 // import * as Font from 'expo-font';
 
 export default function SignUp() {
-
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');

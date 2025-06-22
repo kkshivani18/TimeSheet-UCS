@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, BackHandler } from 'react-native';
-import { FIREBASE_AUTH } from '../firebaseConfig';
+import { FIREBASE_AUTH, FIREBASE_APP, FIRESTORE_DB } from '../firebaseConfig';
 import { sendEmailVerification, checkActionCode } from 'firebase/auth';
 import { useNavigation, useRoute } from '@react-navigation/native';
 

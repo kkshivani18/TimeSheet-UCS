@@ -64,86 +64,86 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <NavigationContainer
-        onReady={() => console.log('NavigationContainer ready')}
-        onStateChange={(state) => console.log('Navigation state:', state)}
-      >
-        <Stack.Navigator initialRouteName="Login">
-          <Stack.Screen
-            name="SignUp"
-            component={SignUp}
-            options={{
-              headerTitle: () => <HeaderTitle />,
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
-            name="Authentication"
-            component={Authentication}
-            options={{
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
-            name="Login"
-            component={Login}
-            options={{
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
-            name="Dashboard"
-            component={DrawerNavigator}
-            options={{
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
-            name="Tasks"
-            component={Tasks}
-            options={{
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
-            name="Admin"
-            component={AdminNavigator}
-            options={{
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
-            name="AdminTasks"
-            component={AdminTasks}
-            options={{
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
-            name="Attendance"
-            component={Attendance}
-            options={{
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
-            name="AdminAttendance"
-            component={AdminAttendance}
-            options={{
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
+        <NavigationContainer
+          onReady={() => console.log('NavigationContainer ready')}
+          onStateChange={(state) => console.log('Navigation state:', state)}
+        >
+          <Stack.Navigator initialRouteName="Login">
+            <Stack.Screen
+              name="SignUp"
+              component={SignUp}
+              options={{
+                headerTitle: () => <HeaderTitle />,
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="Authentication"
+              component={Authentication}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="Login"
+              component={Login}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="Dashboard"
+              component={DrawerNavigator}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="Tasks"
+              component={Tasks}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="Admin"
+              component={AdminNavigator}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="AdminTasks"
+              component={AdminTasks}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="Attendance"
+              component={Attendance}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="AdminAttendance"
+              component={AdminAttendance}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
     </ErrorBoundary>
   );
 }

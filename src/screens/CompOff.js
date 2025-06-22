@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, FlatList, Modal, ScrollView } from 'react-native';
-import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
+import { FIREBASE_AUTH, FIREBASE_APP, FIRESTORE_DB } from '../firebaseConfig';
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc, getDocs } from 'firebase/firestore';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Icon } from 'react-native-elements';
@@ -26,10 +26,18 @@ export default function CompOff({ navigation }) {
     const recordsPerPage = 7;
 
     const [selectedMonth, setSelectedMonth] = useState(new Date());
+    const [compOffUnsubscribe, setCompOffUnsubscribe] = useState(null);
 
     useEffect(() => {
         fetchCompOffApplications();
         fetchMonthlyRecords();
+        
+        // Cleanup function
+        return () => {
+            if (compOffUnsubscribe) {
+                compOffUnsubscribe();
+            }
+        };
     }, [selectedMonth]);
 
     const fetchCompOffApplications = async () => {
@@ -52,7 +60,7 @@ export default function CompOff({ navigation }) {
                 setCompOffApplications(applications);
             });
 
-            return () => unsubscribe();
+            setCompOffUnsubscribe(() => unsubscribe);
         } catch (error) {
             console.error('Error fetching comp-off applications:', error);
         }
@@ -298,14 +306,24 @@ export default function CompOff({ navigation }) {
     };
     
 
-    const handleLogout = () => {
-        FIREBASE_AUTH.signOut()
-            .then(() => {
-                navigation.navigate('Login');
-            })
-            .catch((error) => {
-                console.error('Error logging out:', error);
-            });
+    const handleLogout = async () => {
+        try {
+            // Clean up the Firestore listener first
+            if (compOffUnsubscribe) {
+                compOffUnsubscribe();
+                setCompOffUnsubscribe(null);
+            }
+            
+            // Sign out from Firebase Auth
+            await FIREBASE_AUTH.signOut();
+            
+            // Navigate to login
+            navigation.navigate('Login');
+        } catch (error) {
+            console.error('Error logging out:', error);
+            // Even if there's an error, try to navigate to login
+            navigation.navigate('Login');
+        }
     };
 
     const formatDate = (date) => {

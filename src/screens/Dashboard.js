@@ -3,13 +3,11 @@ import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Ale
 import { Calendar } from 'react-native-calendars';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
+import { FIREBASE_AUTH, FIREBASE_APP, FIRESTORE_DB } from '../firebaseConfig';
 import { collection, addDoc, getDoc, doc, getDocs, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
-// import { minTime } from 'date-fns/constants';
-// import Calendar from "react-native-calendar-range-picker";
 
 const months = [
     { label: 'January', value: 1 },

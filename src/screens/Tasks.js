@@ -7,7 +7,6 @@ import { Icon } from 'react-native-elements';
 import { format } from 'date-fns';
 
 export default function Tasks({ route, navigation }) {
-
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
 

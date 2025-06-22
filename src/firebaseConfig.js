@@ -36,12 +36,16 @@ const FIREBASE_APP = getApps().length === 0 ? initializeApp(firebaseConfig) : ge
 let FIREBASE_AUTH;
 
 try {
-  FIREBASE_AUTH = initializeAuth(FIREBASE_APP, {
-    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-  });
-} catch (e) {
-  FIREBASE_AUTH = getAuth(FIREBASE_APP);
-}
+  if (Platform.OS === 'web') {
+    FIREBASE_AUTH = getAuth(FIREBASE_APP);
+} else {
+    FIREBASE_AUTH = initializeAuth(FIREBASE_APP, {
+      persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+      });
+    }
+  } catch (error) {
+    FIREBASE_AUTH = getAuth(FIREBASE_APP);
+  }
 
 // if (Platform.OS === 'web') {
 //   FIREBASE_AUTH = getAuth(FIREBASE_APP); 

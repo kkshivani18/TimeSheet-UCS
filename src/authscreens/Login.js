@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
+import { FIREBASE_AUTH, FIREBASE_APP, FIRESTORE_DB } from '../firebaseConfig';
 import { signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { getDoc, doc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
-// import { router } from 'expo-router';
 import { useNavigation } from '@react-navigation/native';
 
 export default function Login() {
