@@ -254,6 +254,7 @@ export default function LeaveApplication({ navigation }) {
                         value={leaveReason}
                         onChangeText={setLeaveReason}
                         multiline
+                        placeholderTextColor="#000000"
                     />
                     
                     <TouchableOpacity
@@ -453,6 +454,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
         borderRadius: 5,
         backgroundColor: 'white',
+        color: '#000000'
     },
     textArea: {
         height: 80,

@@ -777,6 +777,7 @@ export default function Tasks({ route, navigation }) {
                                 style={styles.input}
                                 value={editHeading}
                                 onChangeText={setEditHeading}
+                                placeholderTextColor="#000000"
                             />
 
                             <Text style={styles.inputLabel}>Description</Text>
@@ -786,6 +787,7 @@ export default function Tasks({ route, navigation }) {
                                 onChangeText={setEditDescription}
                                 multiline={true}
                                 numberOfLines={4}
+                                placeholderTextColor="#000000"
                             />
 
                             <Text style={styles.inputLabel}>Deadline</Text>
@@ -910,6 +912,7 @@ export default function Tasks({ route, navigation }) {
                                 style={styles.input}
                                 value={editHeading}
                                 onChangeText={setEditHeading}
+                                placeholderTextColor="#000000"
                             />
 
                             <Text style={styles.inputLabel}>Description</Text>
@@ -919,6 +922,7 @@ export default function Tasks({ route, navigation }) {
                                 onChangeText={setEditDescription}
                                 multiline={true}
                                 numberOfLines={4}
+                                placeholderTextColor="#000000"
                             />
 
                             <Text style={styles.inputLabel}>Deadline</Text>
@@ -1151,6 +1155,7 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         fontSize: 16,
         backgroundColor: '#f9f9f9',
+        color: "#000000"
     },
     textArea: {
         height: 100,

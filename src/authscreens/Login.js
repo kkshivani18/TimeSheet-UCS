@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Image, Modal } from 'react-native';
 import { FIREBASE_AUTH, FIREBASE_APP, FIRESTORE_DB } from '../firebaseConfig';
-import { signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail } from 'firebase/auth';
 import { getDoc, doc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -13,6 +13,8 @@ export default function Login() {
     const [messageType, setMessageType] = useState('');
     const [passwordVisible, setPasswordVisible] = useState(false);
     const [role, setRole] = useState('');
+    const [resetEmail, setResetEmail] = useState('');
+    const [forgotPasswordModalVisible, setForgotPasswordModalVisible] = useState(false);
 
     const navigation = useNavigation();
 
@@ -66,6 +68,24 @@ export default function Login() {
         }
     };
 
+    const handleForgotPassword = async () => {
+        if (!resetEmail) {
+            setMessage('Please enter your email to reset password');
+            setMessageType('error');
+            return;
+        }
+        try {
+            await sendPasswordResetEmail(FIREBASE_AUTH, resetEmail);
+            setMessage('Password reset email sent. Check your inbox.');
+            setMessageType('success');
+            setResetEmail(''); 
+        } catch (error) {
+            console.log('Forgot password error:', error);
+            setMessage('Error sending reset email. Check your email address.');
+            setMessageType('error');
+        }
+    };
+
     return (
         <View style={styles.container}>
             <Image
@@ -86,6 +106,7 @@ export default function Login() {
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
+                placeholderTextColor="#000000"
             />
 
             <View style={styles.passwordContainer}>
@@ -95,6 +116,7 @@ export default function Login() {
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!passwordVisible}
+                    placeholderTextColor="#000000"
                 />
                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
                     <Ionicons
@@ -105,6 +127,52 @@ export default function Login() {
                     />
                 </TouchableOpacity>
             </View>
+            
+            <View style={styles.forgotPasswordContainer}>
+                <Text
+                    style={[styles.forgotpasswordText, styles.signUpLink]}
+                    onPress={() => setForgotPasswordModalVisible(true)}
+                >
+                    Forgot Password?
+                </Text>
+            </View>
+
+            <Modal
+                visible={forgotPasswordModalVisible}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setForgotPasswordModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Reset Password</Text>
+                        <TextInput
+                            style={styles.emailInput}
+                            placeholder="Enter your email"
+                            value={resetEmail}
+                            onChangeText={setResetEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            placeholderTextColor="#000000"
+                        />
+                        <View style={styles.modalButtonRow}>
+                            <Button
+                                title="Send Reset Link"
+                                onPress={async () => {
+                                    await handleForgotPassword();
+                                    setForgotPasswordModalVisible(false);
+                                    setResetEmail('');
+                                }}
+                            />
+                            <Button
+                                title="Cancel"
+                                color="gray"
+                                onPress={() => setForgotPasswordModalVisible(false)}
+                            />
+                        </View>
+                    </View>
+                </View>
+            </Modal>
 
             <View style={styles.buttonContainer}>
                 <Button title="Log In" onPress={handleLogin} />
@@ -151,6 +219,7 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         width: '90%',
         alignSelf: 'center',
+        color: '#000000',
     },
 
     passwordContainer: {
@@ -167,6 +236,7 @@ const styles = StyleSheet.create({
     passwordInput: {
         flex: 1,
         padding: 10,
+        color: '#000000',
     },
 
     eyeIcon: {
@@ -206,6 +276,59 @@ const styles = StyleSheet.create({
     footerText: {
         textAlign: 'center',
         marginTop: 16,
+    },
+
+    forgotpasswordText: {
+        textAlign: 'right',
+        marginTop: -2,
+    },
+
+    forgotPasswordContainer: {
+        width: '90%',
+        alignSelf: 'center',
+        alignItems: 'flex-end',
+        marginTop: -10, 
+        marginBottom: 10,
+    },
+
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+
+    modalContent: {
+        backgroundColor: 'white',
+        padding: 20,
+        borderRadius: 10,
+        width: '85%',
+        alignItems: 'center',
+    },
+
+    modalTitle: {
+        fontSize: 15,
+        fontWeight: 'bold',
+        marginBottom: 10,
+    },
+
+    emailInput: {
+        borderWidth: 1,
+        padding: 10,
+        marginTop: 2,
+        marginBottom: 20,
+        borderRadius: 10,
+        width: '90%',
+        alignSelf: 'center',
+        color: '#000000',
+    },
+
+    modalButtonRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+        marginTop: 5,
+        gap: 10,
     },
 
     signUpLink: {

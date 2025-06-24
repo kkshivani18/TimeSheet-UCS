@@ -493,6 +493,7 @@ export default function CompOff({ navigation }) {
                             placeholder="Enter hours"
                             keyboardType="numeric"
                             maxLength={2}
+                            placeholderTextColor="#000000"
                         />
                     </View>
 
@@ -502,6 +503,7 @@ export default function CompOff({ navigation }) {
                         value={reason}
                         onChangeText={setReason}
                         multiline
+                        placeholderTextColor="#000000"
                     />
 
                     <TouchableOpacity
@@ -720,6 +722,7 @@ const styles = StyleSheet.create({
         width: 100,
         backgroundColor: '#f0f8ff',
         textAlign: 'center',
+        color: '#000000'
     },
     input: {
         borderWidth: 1,
@@ -728,6 +731,7 @@ const styles = StyleSheet.create({
         borderRadius: 5,
         backgroundColor: 'white',
         marginRight: 10,
+        color: '#000000'
     },
     textArea: {
         height: 80,

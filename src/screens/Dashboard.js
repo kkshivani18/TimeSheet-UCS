@@ -445,57 +445,7 @@ export default function Dashboard({ navigation }) {
             </View>
 
             {/* calendar */}
-
             <View style={styles.card}>
-                {/* <Calendar
-                    key={`${selectedYear}-${selectedMonth}`}
-                    style={styles.calendar}
-                    hideArrows={true}
-                    theme={{
-                        calendarBackground: 'white',
-                        textSectionTitleColor: '#b6c1cd',
-                        selectedDayBackgroundColor: '#00adf5',
-                        selectedDayTextColor: '#ffffff',
-                        todayTextColor: '#00adf5',
-                        dayTextColor: '#2d4150',
-                        textDisabledColor: '#d9e1e8',
-                        dotColor: '#00adf5',
-                        selectedDotColor: '#ffffff',
-                        arrowColor: 'orange',
-                        monthTextColor: 'black',
-                        indicatorColor: 'black',
-                        textDayFontWeight: '300',
-                        textMonthFontWeight: 'bold',
-                        textDayHeaderFontWeight: '300',
-                        textDayFontSize: 16,
-                        textMonthFontSize: 16,
-                        textDayHeaderFontSize: 14,
-                    }}
-                    markedDates={getCurrentMonthDays()}
-                    current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`}
-                    onDayPress={(day) => {
-                        setSelectedDate(day.dateString);
-                        Alert.alert(
-                            'Select Option',
-                            `What would you like to do for ${day.dateString}?`,
-                            [
-                                {
-                                    text: 'Add Task',
-                                    onPress: () => setModalVisible(true)
-                                },
-                                {
-                                    text: 'View Tasks',
-                                    onPress: () => viewTasksForDate(day.dateString)
-                                },
-                                {
-                                    text: 'Cancel',
-                                    style: 'cancel'
-                                }
-                            ]
-                        );
-                    }}
-                /> */}
-
                 <Calendar
                     key={`${selectedYear}-${selectedMonth}-${JSON.stringify(attendanceData)}`}
                     style={styles.calendar}

@@ -183,15 +183,7 @@ export default function Attendance({ navigation }) {
             const checkInTime = new Date(attendanceData.checkInTime);
             const timeDiff = currentTime - checkInTime;
 
-            // Debug logging to understand the time calculation
-            // console.log('=== TIME CALCULATION DEBUG ===');
-            // console.log('Check-in time:', checkInTime.toISOString());
-            // console.log('Check-out time:', currentTime.toISOString());
-            // console.log('Time difference (ms):', timeDiff);
-            // console.log('Time difference (minutes - exact):', timeDiff / (1000 * 60));
-
             const workedMinutes = Math.floor(timeDiff / (1000 * 60));
-            // console.log('Worked minutes (floored):', workedMinutes);
 
             const hours = Math.floor(workedMinutes / 60);
             const minutes = workedMinutes % 60;
