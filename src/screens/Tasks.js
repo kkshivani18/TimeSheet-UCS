@@ -614,40 +614,22 @@ export default function Tasks({ route, navigation }) {
         );
     };
 
+    const handleLogout = () => {
+        FIREBASE_AUTH.signOut()
+            .then(() => {
+                console.log('User logged out');
+                navigation.navigate('Login');
+            })
+            .catch((error) => {
+                console.error('Error logging out:', error);
+            });
+    };
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                {/* {showMenu && (
-                    <TouchableOpacity onPress={() => navigation.openDrawer()}>
-                        <Icon name="menu" size={22} color="#333" />
-                    </TouchableOpacity>
-                )} */}
-
-                {/* back arrow for admin and users in tasks */}
-                {/* {(isAdminView || viewingUserId === FIREBASE_AUTH.currentUser?.uid) ? (
-                    <TouchableOpacity
-                        onPress={() => {
-                            // navigation.navigate(
-                            // isAdminView && viewingUserId !== FIREBASE_AUTH.currentUser?.uid
-                            //     ? "Admin"
-                            //     : "AdminTasks"
-                            if (isAdminView && viewingUserId !== FIREBASE_AUTH.currentUser?.uid) {
-                                navigation.navigate("Admin"); // Admin when viewing user tasks
-                            } else {
-                                navigation.navigate("AdminTasks"); // AdminTasks when viewing own tasks
-                            }
-                        }}
-                        style={styles.backButton}
-                    >
-                        <Icon name="arrow-left" type="feather" size={20} color="#333" />
-                    </TouchableOpacity>
-                ) : showMenu && (
-                    <TouchableOpacity onPress={() => navigation.openDrawer()}>
-                        <Icon name="menu" size={22} color="#333" />
-                    </TouchableOpacity>
-                )} */}
-
-                {(isAdminView || userRole === "admin") ? (
+                <View style={styles.headerLeft}>
+                    {(isAdminView || userRole === "admin") ? (
                         <TouchableOpacity
                             onPress={() => {
                                 if (isAdminView && viewingUserId !== FIREBASE_AUTH.currentUser?.uid) {
@@ -671,18 +653,27 @@ export default function Tasks({ route, navigation }) {
                             <Icon name="menu" size={22} color="#333" />
                         </TouchableOpacity>
                     )}
+                </View>
 
-                <Text style={styles.title}>
-                    {selectedDate ? (
-                        isAdminView
-                            ? `${viewingUsername}'s Tasks - ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
-                            : `Tasks for ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
-                    ) : (
-                        isAdminView
-                            ? `${viewingUsername}'s Tasks`
-                            : 'Tasks'
-                    )}
-                </Text>
+                <View style={styles.headerCenter}>
+                    <Text style={styles.title}>
+                        {selectedDate ? (
+                            isAdminView
+                                ? `${viewingUsername}'s Tasks - ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
+                                : `Tasks for ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
+                        ) : (
+                            isAdminView
+                                ? `${viewingUsername}'s Tasks`
+                                : 'Tasks'
+                        )}
+                    </Text>
+                </View>
+
+                <View style={styles.headerRight}>
+                    <TouchableOpacity onPress={handleLogout}>
+                        <Icon name="logout" size={25} color="#333" />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Navigation buttons */}
@@ -1044,10 +1035,28 @@ const styles = StyleSheet.create({
         height: 50,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 10,
         borderRadius: 15,
         backgroundColor: '#f8f8f8',
         marginBottom: 20,
+        position: 'relative',
+        paddingHorizontal: -3,
+    },
+    headerLeft: {
+        width: 50,
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        paddingLeft: 10,
+    },
+    headerCenter: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerRight: {
+        width: 50,
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        paddingRight: 10,
     },
     title: {
         fontSize: 20,
