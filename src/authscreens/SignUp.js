@@ -100,6 +100,7 @@ export default function SignUp() {
                 placeholder="Enter Your Username"
                 value={username}
                 onChangeText={setUsername}
+                placeholderTextColor="#000000"
             />
 
             <TextInput
@@ -107,6 +108,7 @@ export default function SignUp() {
                 placeholder="Enter Your Email"
                 value={email}
                 onChangeText={setEmail}
+                placeholderTextColor="#000000"
             />
 
             <View style={styles.passwordContainer}>
@@ -116,6 +118,7 @@ export default function SignUp() {
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!passwordVisible}
+                    placeholderTextColor="#000000"
                 />
                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
                     <Ionicons
@@ -175,7 +178,8 @@ const styles = StyleSheet.create({
         marginBottom: 26,
         borderRadius: 10,
         width: '90%',
-        alignSelf: 'center'
+        alignSelf: 'center',
+        color: '#000000', 
     },
 
     passwordContainer: {
@@ -192,6 +196,7 @@ const styles = StyleSheet.create({
     passwordInput: {
         flex: 1,
         padding: 10,
+        color: '#000000',
     },
 
     eyeIcon: {

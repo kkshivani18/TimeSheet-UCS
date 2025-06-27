@@ -17,3 +17,15 @@
 
 #### Compensatory Off Tracking
 - Monitor weekend work, public holiday shifts, and overtime, allowing employees to earn and redeem compensatory offs.
+
+### App Interface
+
+#### Sign-up and Login Screens
+
+![Sign up and Login Screens](images/signup_login.png)
+
+#### Employee-Interface
+
+#### Dashboard
+
+![Dashboard of employees](/images/dashboard_emp.jpg)
