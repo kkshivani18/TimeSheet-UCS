@@ -74,6 +74,12 @@ export default function AdminCompOff({ navigation }) {
                 })).then(updatedApplications => {
                     setCompOffApplications(updatedApplications);
                 });
+            }, (error) => {
+                // Only log error if user is still authenticated
+                if (FIREBASE_AUTH.currentUser) {
+                    console.error('Error fetching comp-off applications:', error);
+                    Alert.alert('Error', 'Failed to fetch applications');
+                }
             });
     
             setCompOffUnsubscribe(() => unsubscribe);
@@ -200,7 +206,7 @@ export default function AdminCompOff({ navigation }) {
             <Text style={styles.dateRange}>
                 Date Range: {format(new Date(item.startDateTime), 'dd/MM/yyyy')} to {format(new Date(item.endDateTime), 'dd/MM/yyyy')}
             </Text>
-            <Text style={styles.duration}>CompOff Duration: {item.duration} hours</Text>
+            <Text style={styles.duration}>CompOff Duration: {item.duration} days </Text>
             <Text style={styles.reason}>Reason: {item.reason}</Text>
             <Text style={[styles.status, { color: item.status === 'Approved' ? 'green' : item.status === 'Pending' ? 'gray' : 'orange' }]}>
                 Status: {item.status}
@@ -282,6 +288,7 @@ export default function AdminCompOff({ navigation }) {
                             placeholder="Enter username"
                             value={filterCriteria.username}
                             onChangeText={(text) => setFilterCriteria({...filterCriteria, username: text})}
+                            placeholderTextColor="#000000"
                         />
                         
                         <Text style={styles.filterLabel}>Filter by Status:</Text>
@@ -311,6 +318,7 @@ export default function AdminCompOff({ navigation }) {
                             placeholder="YYYY-MM-DD"
                             value={filterCriteria.date}
                             onChangeText={(text) => setFilterCriteria({...filterCriteria, date: text})}
+                            placeholderTextColor='#000000'
                         />
                         
                         <View style={styles.modalButtons}>
@@ -339,7 +347,7 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 15,
         backgroundColor: '#f0f0f0',
-        marginTop: 25,
+        marginTop: 5,
     },
     header: {
         width: '100%',
@@ -350,7 +358,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         borderRadius: 15,
         backgroundColor: '#f8f8f8',
-        marginBottom: 20,
+        marginBottom: 6,
     },
     title: {
         fontSize: 19,
@@ -369,6 +377,8 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
+        marginLeft: -15,
+        marginRight: -10
     },
     cardHeader: {
         flexDirection: 'row',
@@ -443,7 +453,7 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         borderWidth: 1,
         borderColor: '#ddd',
-        marginBottom: -2,
+        marginBottom: -15,
     },
     filterButtonText: {
         marginLeft: 5,
@@ -453,8 +463,8 @@ const styles = StyleSheet.create({
     resetButton: {
         marginLeft: 10,
         backgroundColor: '#f0f0f0',
-        paddingVertical: 8,
         paddingHorizontal: 12,
+        paddingVertical: 8,
         borderRadius: 6,
         borderWidth: 1,
         borderColor: '#ddd',
@@ -504,6 +514,7 @@ const styles = StyleSheet.create({
         padding: 10,
         fontSize: 15,
         marginBottom: 10,
+        color: '#000000'
     },
     statusOptions: {
         flexDirection: 'row',

@@ -20,6 +20,7 @@ export default function LeaveApplication({ navigation }) {
     const [filterModalVisible, setFilterModalVisible] = useState(false);
     const [selectedFilter, setSelectedFilter] = useState('all');
     const [isFiltered, setIsFiltered] = useState(false);
+    const [leaveApplicationsUnsubscribe, setLeaveApplicationsUnsubscribe] = useState(null);
 
     useEffect(() => {
         // Fetch current user's role
@@ -63,8 +64,7 @@ export default function LeaveApplication({ navigation }) {
             }
         });
 
-        // Cleanup subscription on unmount
-        return () => unsubscribe();
+        setLeaveApplicationsUnsubscribe(() => unsubscribe);
     }, []);
 
     const formatDate = (date) => {
@@ -165,14 +165,13 @@ export default function LeaveApplication({ navigation }) {
     };
 
     const handleLogout = () => {
-            //  subscribe from any Firestore listeners
-        const unsubscribeListeners = () => {
-            // trigger the cleanup function in the useEffect
-            setLeaveApplications([]);
-        };
-        unsubscribeListeners();
+        // Clean up the Firestore listener first
+        if (leaveApplicationsUnsubscribe) {
+            leaveApplicationsUnsubscribe();
+            setLeaveApplicationsUnsubscribe(null);
+        }
 
-        // sign out
+        // Sign out from Firebase Auth
         FIREBASE_AUTH.signOut()
             .then(() => {
                     console.log('User logged out');
@@ -180,6 +179,7 @@ export default function LeaveApplication({ navigation }) {
                 })
                 .catch((error) => {
                     console.error('Error logging out:', error);
+                navigation.navigate('Login');
                 });
     };
 
@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 16,
         backgroundColor: '#f0f0f0',
-        marginTop: 25,
+        marginTop: 5,
     },
     header: {
         width: '100%',

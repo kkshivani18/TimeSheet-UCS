@@ -530,6 +530,7 @@ export default function Dashboard({ navigation }) {
                                 placeholder="Enter task heading"
                                 value={taskHeading}
                                 onChangeText={setTaskHeading}
+                                placeholderTextColor="#000000"
                             />
 
                             <Text style={styles.inputLabel}>Description</Text>
@@ -540,6 +541,7 @@ export default function Dashboard({ navigation }) {
                                 onChangeText={setTaskDescription}
                                 multiline={true}
                                 numberOfLines={4}
+                                placeholderTextColor="#000000"
                             />
 
                             <Text style={styles.inputLabel}>Deadline</Text>
@@ -642,7 +644,7 @@ export default function Dashboard({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        marginTop: 25,
+        marginTop: 5,
         alignItems: 'center',
         padding: 16,
         backgroundColor: '#f0f0f0',
@@ -750,6 +752,7 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         fontSize: 16,
         backgroundColor: '#f9f9f9',
+        color: "#000000",
     },
 
     textArea: {

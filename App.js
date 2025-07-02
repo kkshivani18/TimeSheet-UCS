@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Image, BackHandler, LogBox, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { onAuthStateChanged } from 'firebase/auth';
+import { FIREBASE_AUTH } from './src/firebaseConfig';
 import SignUp from './src/authscreens/SignUp';
 import Authentication from './src/authscreens/Authentication';
 import Login from './src/authscreens/Login';
@@ -56,6 +58,18 @@ class ErrorBoundary extends React.Component {
 }
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(FIREBASE_AUTH, (user) => {
+      setUser(user);
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+  
   useEffect(() => {
     const backAction = () => true;
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);

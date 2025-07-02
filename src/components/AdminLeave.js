@@ -281,6 +281,7 @@ export default function AdminLeave({ navigation }) {
                             placeholder="Enter username"
                             value={filterCriteria.username}
                             onChangeText={(text) => setFilterCriteria({...filterCriteria, username: text})}
+                            placeholderTextColor='#000000'
                         />
                         
                         <Text style={styles.filterLabel}>Filter by Status:</Text>
@@ -310,6 +311,7 @@ export default function AdminLeave({ navigation }) {
                             placeholder="YYYY-MM-DD"
                             value={filterCriteria.date}
                             onChangeText={(text) => setFilterCriteria({...filterCriteria, date: text})}
+                            placeholderTextColor="#000000"
                         />
                         
                         <View style={styles.modalButtons}>
@@ -350,7 +352,7 @@ const getStatusStyle = (status) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        marginTop: 25,
+        marginTop: 5,
         alignItems: 'center',
         padding: 15,
         backgroundColor: '#f0f0f0',
@@ -375,17 +377,6 @@ const styles = StyleSheet.create({
         fontSize: 16, 
         color: '#666' 
     },
-    // card: {
-    //     flex: 1,
-    //     backgroundColor: 'white',
-    //     borderRadius: 10,
-    //     padding: 15,
-    //     marginBottom: 15,
-    //     elevation: 3,   
-    //     alignSelf: 'center',
-    //     // marginHorizontal: 10,
-    //     width: screenWidth - 30, // leave some margin
-    // },
     card: {
         backgroundColor: 'white',
         borderRadius: 10,
@@ -539,6 +530,7 @@ const styles = StyleSheet.create({
         padding: 10,
         fontSize: 15,
         marginBottom: 10,
+        color: '#000000',
     },
     statusOptions: {
         flexDirection: 'row',

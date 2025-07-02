@@ -30,7 +30,6 @@ export default function CompOff({ navigation }) {
 
     useEffect(() => {
         fetchCompOffApplications();
-        fetchMonthlyRecords();
         
         // Cleanup function
         return () => {
@@ -58,250 +57,17 @@ export default function CompOff({ navigation }) {
                     requestDate: doc.data().createdAt?.toDate() || new Date()
                 }));
                 setCompOffApplications(applications);
+            }, (error) => {
+                if (FIREBASE_AUTH.currentUser) {
+                    console.error("Error in snapshot listener:", error);
+                    // Show alert only if user is authenticated
+                    Alert.alert('Error', 'Could not load data');
+                }
             });
 
             setCompOffUnsubscribe(() => unsubscribe);
         } catch (error) {
             console.error('Error fetching comp-off applications:', error);
-        }
-    };
-
-    const fetchMonthlyRecords = async () => {
-        try {
-            const user = FIREBASE_AUTH.currentUser;
-            if (!user) return;
-            
-            // month's start and end day
-            const startOfCurrentMonth = startOfMonth(selectedMonth);
-            const endOfCurrentMonth = endOfMonth(selectedMonth);
-
-            // available hours
-            const availableHours = await calculateAvailableHours(user.uid, startOfCurrentMonth, endOfCurrentMonth);
-            setTotalAvailableHours(availableHours);
-    
-            // fetch all paid holidays
-            const paidHolidaysQuery = query(
-                collection(FIRESTORE_DB, "paidHolidays"),
-                where('year', '==', selectedMonth.getFullYear())
-            );
-            const paidHolidaysSnapshot = await getDocs(paidHolidaysQuery);
-            const paidHolidays = {};
-
-            console.log(`Paid Holidays Query Snapshot Size: ${paidHolidaysSnapshot.size}`); 
-
-            paidHolidaysSnapshot.forEach(doc => {
-                const holiday = doc.data();
-                const [day, month, year] = holiday.date.split('-');
-                const holidayDateFormatted = `${year}-${month}-${day}`;
-                const holidayDate = startOfDay(new Date(holidayDateFormatted));
-                
-                if (holidayDate >= startOfDay(startOfCurrentMonth) && holidayDate <= startOfDay(endOfCurrentMonth)) {
-                    paidHolidays[holidayDateFormatted] = holiday.description;
-                }
-            });
-    
-            // fetch approved leave days
-            const leaveQuery = query(
-                collection(FIRESTORE_DB, 'leaveRequests'),
-                where('userId', '==', user.uid),
-                where('status', '==', 'Approved')
-            );
-            const leaveSnapshot = await getDocs(leaveQuery);
-            const leaveDays = {};
-            leaveSnapshot.forEach(doc => {
-                const leave = doc.data();
-                const start = startOfDay(new Date(leave.startDate));
-                const end = startOfDay(new Date(leave.endDate));
-                let current = startOfDay(new Date(start));
-                while (current <= end) {
-                    if (current >= startOfDay(startOfCurrentMonth) && current <= startOfDay(endOfCurrentMonth)) {
-                        leaveDays[format(current, 'yyyy-MM-dd')] = leave.leaveType;
-                    }
-                    current.setDate(current.getDate() + 1);
-                }
-            });
-    
-            // get all days in the month
-            const daysInMonth = eachDayOfInterval({ start: startOfCurrentMonth, end: endOfCurrentMonth });
-            const records = [];
-            // let totalHours = 0;
-    
-            // process each day
-            for (const day of daysInMonth) {
-                const dateStr = format(day, 'yyyy-MM-dd');
-                const docId = `${user.uid}_${day.toLocaleDateString().replace(/\//g, '-')}`;
-                // const docId = `${user.uid}_${format(day, 'd-M-yyyy')}`;
-                
-                const docRef = doc(FIRESTORE_DB, 'attendance', docId);
-                const docSnap = await getDoc(docRef);
-    
-                console.log(`Processing day: ${dateStr}, DocId: ${docId}`);
-
-                if (docSnap.exists()) {
-                    console.log(`Attendance record found for ${dateStr}`);
-                    const data = docSnap.data();
-                    const isWeekendDay = isWeekend(day);
-                    const isPaidHoliday = paidHolidays[dateStr];
-                    const isLeaveDay = leaveDays[dateStr];
-                    const workedHours = parseFloat(data.workedHours || 0);
-                    const overtimeHours = workedHours > 8 ? workedHours - 8 : 0;
-    
-                    console.log(`  isWeekendDay: ${isWeekendDay}, isPaidHoliday: ${!!isPaidHoliday}, isLeaveDay: ${!!isLeaveDay}, overtimeHours: ${overtimeHours.toFixed(2)}`);
-                    console.log(`  Worked Hours from DB: ${data.workedHours}, CheckInTime: ${data.checkInTime}, CheckOutTime: ${data.checkOutTime}`);
-
-                    // Only add record if employee worked on weekend, holiday, leave day or overtime
-                    if (isWeekendDay || isPaidHoliday || isLeaveDay || overtimeHours > 0) {
-                        let type = '';
-                        let displayHours = '-';
-    
-                        if (isWeekendDay && workedHours > 0) {
-                            type = 'Weekend';
-                            displayHours = workedHours.toFixed(2);
-                        } else if (isPaidHoliday && workedHours > 0) {
-                            type = `Paid Holiday (${paidHolidays[dateStr]})`;
-                            displayHours = workedHours.toFixed(2);
-                        } else if (isLeaveDay && workedHours > 0) {
-                            type = `Leave Day (${leaveDays[dateStr]})`;
-                            displayHours = workedHours.toFixed(2);
-                        } else if (overtimeHours > 0) {
-                            type = `Overtime`;
-                            displayHours = overtimeHours.toFixed(2);
-                        }
-    
-                        const record = {
-                            day: format(day, 'EEE'),
-                            date: format(day, 'dd-MM'),
-                            checkIn: data.checkInTime ? format(new Date(data.checkInTime), 'HH:mm') : '-',
-                            checkOut: data.checkOutTime ? format(new Date(data.checkOutTime), 'HH:mm') : '-',
-                            hours: displayHours,
-                            type: type
-                        };
-                        records.push(record);
-                        console.log(`  Record added: ${JSON.stringify(record)}`);
-                    } else {
-                        console.log(`  Conditions not met for adding record for ${dateStr}`);
-                    }
-                } else {
-                    console.log(`  No attendance record found for ${dateStr}`);
-                }
-            }
-    
-            setMonthlyRecords(records);
-            // setTotalAvailableHours(totalHours);
-            console.log(`Final monthlyRecords length: ${records.length}`);
-        } catch (error) {
-            console.error('Error fetching monthly records:', error);
-        }
-    };
-
-    useEffect(() => {
-        fetchMonthlyRecords();
-    }, [selectedMonth]);
-
-    // func to calculate available hours 
-    const calculateAvailableHours = async (userId, startDate, endDate) => {
-        try {
-            let totalHours = 0;
-            console.log(`calculateAvailableHours: userId: ${userId}, startDate: ${startDate.toISOString()}, endDate: ${endDate.toISOString()}`);
-    
-            // Fetch paid holidays for the period
-            const paidHolidaysQuery = query(
-                collection(FIRESTORE_DB, "paidHolidays"),
-                where('year', '==', startDate.getFullYear())
-            );
-            const paidHolidaysSnapshot = await getDocs(paidHolidaysQuery);
-            const paidHolidays = {};
-            paidHolidaysSnapshot.forEach(doc => {
-                const holiday = doc.data();
-                const [day, month, year] = holiday.date.split('-');
-                const holidayDateFormatted = `${year}-${month}-${day}`;
-                const holidayDate = startOfDay(new Date(holidayDateFormatted)); 
-
-                if (holidayDate >= startOfDay(startDate) && holidayDate <= startOfDay(endDate)) { 
-                    paidHolidays[holidayDateFormatted] = holiday.description;
-                } 
-            });
-    
-            // Fetch approved leave days
-            const leaveQuery = query(
-                collection(FIRESTORE_DB, 'leaveRequests'),
-                where('userId', '==', userId),
-                where('status', '==', 'Approved')
-            );
-            const leaveSnapshot = await getDocs(leaveQuery);
-            const leaveDays = {};
-            leaveSnapshot.forEach(doc => {
-                const leave = doc.data();
-                const start = startOfDay(new Date(leave.startDate));
-                const end = startOfDay(new Date(leave.endDate));
-                let current = startOfDay(new Date(start));
-                while (current <= end) {
-                    if (current >= startOfDay(startDate) && current <= startOfDay(endDate)) {
-                        leaveDays[format(current, 'yyyy-MM-dd')] = leave.leaveType;
-                    }
-                    current.setDate(current.getDate() + 1);
-                }
-            });
-    
-            // Get all days in the period
-            const daysInPeriod = eachDayOfInterval({ start: startDate, end: endDate });
-    
-            // Process each day
-            for (const day of daysInPeriod) {
-                const dateStr = format(day, 'yyyy-MM-dd');
-                const docId = `${userId}_${day.toLocaleDateString().replace(/\//g, '-')}`;
-                // const docId = `${user.uid}_${format(day, 'd-M-yyyy')}`;
-                
-                const docRef = doc(FIRESTORE_DB, 'attendance', docId);
-                const docSnap = await getDoc(docRef);
-    
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    const isWeekendDay = isWeekend(day);
-                    const isPaidHoliday = paidHolidays[dateStr];
-                    const isLeaveDay = leaveDays[dateStr];
-                    const workedHours = parseFloat(data.workedHours || 0);
-                    const overtimeHours = workedHours > 8 ? workedHours - 8 : 0;
-    
-                    // Calculate hours based on different scenarios
-                    if (isWeekendDay && workedHours > 0) {
-                        // Full hours worked on weekend
-                        totalHours += workedHours;
-                    } else if (isPaidHoliday && workedHours > 0) {
-                        // Full hours worked on holiday
-                        totalHours += workedHours;
-                    } else if (isLeaveDay && workedHours > 0) {
-                        // Full hours worked during leave
-                        totalHours += workedHours;
-                    } else if (overtimeHours > 0) {
-                        // Only overtime hours (hours worked beyond 8)
-                        totalHours += overtimeHours;
-                    }
-                }
-            }
-    
-            // Subtract approved comp-off hours
-            const approvedCompOffQuery = query(
-                collection(FIRESTORE_DB, 'compOff'),
-                where('userId', '==', userId),
-                where('status', '==', 'Approved')
-            );
-            const approvedCompOffSnapshot = await getDocs(approvedCompOffQuery);
-            let totalApprovedHours = 0;
-            
-            approvedCompOffSnapshot.forEach(doc => {
-                const compOff = doc.data();
-                const compOffStart = new Date(compOff.startDateTime);
-                if (compOffStart >= startOfDay(startDate) && compOffStart <= endOfDay(endDate)) {
-                    totalApprovedHours += parseFloat(compOff.duration || 0);
-                }
-            });
-
-            // available hours (total earned - approved)
-            return totalHours - totalApprovedHours;
-        } catch (error) {
-            console.error('Error calculating available hours:', error);
-            return 0;
         }
     };
     
@@ -321,7 +87,6 @@ export default function CompOff({ navigation }) {
             navigation.navigate('Login');
         } catch (error) {
             console.error('Error logging out:', error);
-            // Even if there's an error, try to navigate to login
             navigation.navigate('Login');
         }
     };
@@ -355,7 +120,7 @@ export default function CompOff({ navigation }) {
         }
     };
 
-    const handleHoursChange = (text) => {
+    const handleDaysChange = (text) => {
         // Only numbers
         const numericValue = text.replace(/[^0-9]/g, '');
         setHours(numericValue);
@@ -372,17 +137,6 @@ export default function CompOff({ navigation }) {
             const user = FIREBASE_AUTH.currentUser;
             if (!user) {
                 Alert.alert('Error', 'User not authenticated');
-                return;
-            }
-            
-            // available hours
-            const monthStart = startOfMonth(new Date());  
-            const monthEnd = endOfMonth(new Date());
-            const availableHours = await calculateAvailableHours(user.uid, monthStart, monthEnd);
-
-            // Check if user has enough hours
-            if (availableHours < parseFloat(hours)) {
-                Alert.alert('Error', `Not enough available comp-off hours. You have ${availableHours.toFixed(2)} hours available.`);
                 return;
             }
 
@@ -415,7 +169,6 @@ export default function CompOff({ navigation }) {
     const renderCompOffApplication = ({ item }) => (
         <View style={styles.applicationCard}>
             <View style={styles.applicationHeader}>
-                {/* <Text style={styles.requestId}>Request ID: {item.id}</Text> */}
                 <Text style={[styles.status, { color: item.status === 'Approved' ? 'green' : item.status === 'Pending' ? 'grey' : 'orange' }]}>
                     {item.status}
                 </Text>
@@ -424,29 +177,21 @@ export default function CompOff({ navigation }) {
             <Text style={styles.dateRange}>
                 Date Range: {format(new Date(item.startDateTime), 'dd-MM-yyyy')} to {format(new Date(item.endDateTime), 'dd-MM-yyyy')}
             </Text>
-            <Text style={styles.duration}>CompOff Duration: {item.duration} hours</Text>
+            <Text style={styles.duration}>CompOff Duration: {item.duration} days</Text>
             <Text style={styles.reason}>Reason: {item.reason}</Text>
         </View>
     );
 
-    const renderMonthlyRecord = ({ item }) => (
-        <View style={styles.recordRow}>
-            <Text style={styles.recordCell}>{item.day}</Text>
-            <Text style={styles.recordCell}>{item.date}</Text>
-            <Text style={styles.recordCell}>{item.checkIn}</Text>
-            <Text style={styles.recordCell}>{item.checkOut}</Text>
-            <Text style={styles.recordCell}>{item.hours}</Text>
-            <Text style={styles.recordCell}>{item.type}</Text>
-        </View>
-    );
-
-    const handlePreviousMonth = () => {
-        setSelectedMonth(prev => subMonths(prev, 1));
-    };
-
-    const handleNextMonth = () => {
-        setSelectedMonth(prev => addMonths(prev, 1));
-    };
+    // const renderMonthlyRecord = ({ item }) => (
+    //     <View style={styles.recordRow}>
+    //         <Text style={styles.recordCell}>{item.day}</Text>
+    //         <Text style={styles.recordCell}>{item.date}</Text>
+    //         <Text style={styles.recordCell}>{item.checkIn}</Text>
+    //         <Text style={styles.recordCell}>{item.checkOut}</Text>
+    //         <Text style={styles.recordCell}>{item.hours}</Text>
+    //         <Text style={styles.recordCell}>{item.type}</Text>
+    //     </View>
+    // );
 
     return (
         <View style={styles.container}>
@@ -485,12 +230,12 @@ export default function CompOff({ navigation }) {
                     </View>
 
                     <View style={styles.dateContainer}>
-                        <Text style={{fontWeight: 'bold'}}>Apply for Hours:</Text>
+                        <Text style={{fontWeight: 'bold'}}>Apply for Days:</Text>
                         <TextInput
-                            style={styles.hoursInput}
+                            style={styles.daysInput}
                             value={hours}
-                            onChangeText={handleHoursChange}
-                            placeholder="Enter hours"
+                            onChangeText={handleDaysChange}
+                            placeholder="Enter Days"
                             keyboardType="numeric"
                             maxLength={2}
                             placeholderTextColor="#000000"
@@ -528,56 +273,6 @@ export default function CompOff({ navigation }) {
                     </View>
             </View>
 
-            <View style={styles.card}>
-                <Text style={styles.cardTitle}>Monthly CompOff Record</Text>
-                <View style={styles.monthHeader}>
-                    <TouchableOpacity onPress={handlePreviousMonth} style={styles.monthArrow}>
-                        <Ionicons name="chevron-back" size={24} color="#007AFF" />
-                    </TouchableOpacity>
-                    <Text style={styles.monthTitle}>
-                        {format(selectedMonth, 'MMMM yyyy')}
-                    </Text>
-                    <TouchableOpacity onPress={handleNextMonth} style={styles.monthArrow}>
-                        <Ionicons name="chevron-forward" size={24} color="#007AFF" />
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.tableHeader}>
-                    <Text style={styles.headerCell}>Day</Text>
-                    <Text style={styles.headerCell}>Date</Text>
-                    <Text style={styles.headerCell}>Check In</Text>
-                    <Text style={styles.headerCell}>Check Out</Text>
-                    <Text style={styles.headerCell}>Hours</Text>
-                    <Text style={styles.headerCell}>Type</Text>
-                </View>
-                <FlatList
-                    data={monthlyRecords.slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage)}
-                    renderItem={renderMonthlyRecord}
-                    keyExtractor={(item, index) => index.toString()}
-                    scrollEnabled={false}
-                />
-                <View style={styles.pagination}>
-                    <TouchableOpacity 
-                        onPress={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
-                    >
-                        <Text style={styles.paginationButton}>Previous</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.pageNumber}>Page {currentPage}</Text>
-                    <TouchableOpacity 
-                        onPress={() => setCurrentPage(prev => 
-                            prev < Math.ceil(monthlyRecords.length / recordsPerPage) ? prev + 1 : prev
-                        )}
-                        disabled={currentPage >= Math.ceil(monthlyRecords.length / recordsPerPage)}
-                    >
-                        <Text style={styles.paginationButton}>Next</Text>
-                    </TouchableOpacity>
-                </View>
-                <View style={styles.totalHoursContainer}>
-                    <Text style={styles.totalHours}>Total Available CompOff Hours: {totalAvailableHours.toFixed(2)}</Text>
-                </View>
-            </View>
-
             {showStartPicker && (
                 <DateTimePicker
                     value={startDate}
@@ -605,7 +300,7 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 16,
         backgroundColor: '#f0f0f0',
-        marginTop: 25,
+        marginTop: 5,
     },
     header: {
         width: '100%',
@@ -714,7 +409,7 @@ const styles = StyleSheet.create({
         borderColor: '#ddd',
         width: 150,
     },
-    hoursInput: {
+    daysInput: {
         borderWidth: 1,
         borderColor: '#ddd',
         borderRadius: 5,
@@ -815,17 +510,17 @@ const styles = StyleSheet.create({
     pageNumber: {
         marginHorizontal: 10,
     },
-    totalHoursContainer: {
-        marginTop: 15,
-        padding: 10,
-        backgroundColor: '#f0f8ff',
-        borderRadius: 5,
-    },
-    totalHours: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        textAlign: 'center',
-    },
+    // totalHoursContainer: {
+    //     marginTop: 15,
+    //     padding: 10,
+    //     backgroundColor: '#f0f8ff',
+    //     borderRadius: 5,
+    // },
+    // totalHours: {
+    //     fontSize: 16,
+    //     fontWeight: 'bold',
+    //     textAlign: 'center',
+    // },
     monthHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',

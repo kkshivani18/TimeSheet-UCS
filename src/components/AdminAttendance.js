@@ -602,10 +602,10 @@ export default function AdminAttendance({ navigation }) {
                     ) : (
                         <View style={styles.tableContainer}>
                             <View style={styles.tableHeader}>
-                                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Day</Text>
-                                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Date</Text>
-                                <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Check In</Text>
-                                <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Check Out</Text>
+                                <Text style={[styles.tableHeaderCell, { flex: 1.3 }]}>Day</Text>
+                                <Text style={[styles.tableHeaderCell, { flex: 1.3 }]}>Date</Text>
+                                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Check In</Text>
+                                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Check Out</Text>
                                 <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Worked Hours</Text>
                             </View>
                             <FlatList
@@ -625,7 +625,7 @@ export default function AdminAttendance({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        marginTop: 25,
+        marginTop: 5,
         alignItems: 'center',
         padding: 16,
         backgroundColor: '#f0f0f0',

@@ -650,7 +650,7 @@ export default function Tasks({ route, navigation }) {
                         </TouchableOpacity>
                     ) : showMenu && (
                         <TouchableOpacity onPress={() => navigation.openDrawer()}>
-                            <Icon name="menu" size={22} color="#333" />
+                            <Icon name="menu" size={25} color="#333" />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -1021,14 +1021,14 @@ const styles = StyleSheet.create({
         transform: [ {translateX: -10}],
         padding: 10,
         zIndex: 10,
-        marginTop: -18
+        marginTop: -43
 
     },
     container: {
         flex: 1,
         padding: 16,
         backgroundColor: '#f0f0f0',
-        marginTop: 25,
+        marginTop: 5,
     },
     header: {
         width: '100%',

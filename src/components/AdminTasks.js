@@ -390,7 +390,7 @@ export default function AdminTasks({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        marginTop: 25,
+        marginTop: 5,
         alignItems: 'center',
         padding: 16,
         backgroundColor: '#f0f0f0',
