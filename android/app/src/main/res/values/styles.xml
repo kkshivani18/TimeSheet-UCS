@@ -4,6 +4,7 @@
     <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     <item name="colorPrimary">@color/colorPrimary</item>
     <item name="android:statusBarColor">#ffffff</item>
+    <item name="android:windowLightStatusBar">true</item>
     <item name="android:textColor">#000000</item> 
     <item name="android:alertDialogTheme">@style/AlertDialogCustom</item> 
     <item name="android:spinnerStyle">@style/SpinnerCustom</item> 
