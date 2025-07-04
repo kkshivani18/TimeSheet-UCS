@@ -30,4 +30,19 @@
 
 ![Dashboard of employees](/images/dashboard_emp.png)
 
-#### 
+#### Tasks
+
+![Tasks of employees](/images/tasks.png)
+
+#### Apply for Leave
+
+![Leaves applied by employees](/images/applyleave.png)
+
+#### Attendance
+
+![Attendance of employees](/images/attendanceemp.png)
+
+#### Compensatory Off 
+
+![Compensatory Leave](/images/compoff.png)
+
