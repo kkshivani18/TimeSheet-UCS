@@ -28,4 +28,4 @@
 
 #### Dashboard
 
-![Dashboard of employees](/images/dashboard_emp.jpg)
+![Dashboard of employees](/images/dashboard_emp.png)
