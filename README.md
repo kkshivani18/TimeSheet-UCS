@@ -46,3 +46,19 @@
 
 ![Compensatory Leave](/images/compoff.png)
 
+
+#### Admin-Interface
+
+#### Employee Management Dashboard
+
+![Employee Management](/images/empManagement.png)
+
+#### Admin Dashboard
+
+![Admin Dashboard](/images/adminDashboard.png)
+
+#### Leave Application Management 
+
+#### Attendance Management 
+
+#### Compensatory Off Application Management 
