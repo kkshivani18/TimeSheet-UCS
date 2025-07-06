@@ -273,7 +273,7 @@ export default function AdminAttendance({ navigation }) {
 
             // Expo DocumentPicker for mobile platforms
             const result = await DocumentPicker.getDocumentAsync({
-                type: 'text/csv',
+                type: '*/*', 
                 copyToCacheDirectory: true
             });
 

@@ -58,7 +58,7 @@
 ![Admin Dashboard](/images/adminDashboard.png)
 
 #### Leave Application Management 
-
+ 
 #### Attendance Management 
 
 #### Compensatory Off Application Management 
