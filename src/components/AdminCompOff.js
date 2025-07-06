@@ -190,7 +190,18 @@ export default function AdminCompOff({ navigation }) {
         }
     };
 
-    const renderCompOffApplication = ({ item }) => (
+    const renderCompOffApplication = ({ item }) => {
+
+        // comp off type display
+        const getCompOffTypeDisplay = () => {
+            if (item.compOffType === 'half') {
+                const period = item.halfDayPeriod === 'morning' ? 'Morning' : 'Afternoon';
+                return `Half day (${period})`;
+            }
+            return 'Full day';
+        };
+        
+        return (
         <View style={styles.card}>
             <View style={styles.cardHeader}>
                 <Text style={styles.username}>CompOff Request - {item.username}</Text>
@@ -207,6 +218,7 @@ export default function AdminCompOff({ navigation }) {
                 Date Range: {format(new Date(item.startDateTime), 'dd/MM/yyyy')} to {format(new Date(item.endDateTime), 'dd/MM/yyyy')}
             </Text>
             <Text style={styles.duration}>CompOff Duration: {item.duration} days </Text>
+            <Text style={styles.compOffType}>Type: {getCompOffTypeDisplay()}</Text>
             <Text style={styles.reason}>Reason: {item.reason}</Text>
             <Text style={[styles.status, { color: item.status === 'Approved' ? 'green' : item.status === 'Pending' ? 'gray' : 'orange' }]}>
                 Status: {item.status}
@@ -227,7 +239,7 @@ export default function AdminCompOff({ navigation }) {
                 </View>
             )}
         </View>
-    );
+    )};
 
     return (
         <View style={styles.container}>
@@ -569,4 +581,8 @@ const styles = StyleSheet.create({
         borderRadius: 15,
         backgroundColor: '#FFE5E5',
     },
+    compOffType: {
+        marginBottom: 5,
+        fontWeight: 'bold',
+    }
 });
