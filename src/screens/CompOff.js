@@ -18,6 +18,10 @@ export default function CompOff({ navigation }) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);   
 
+    // Half-day functionality
+    const [compOffType, setCompOffType] = useState('full'); // 'full' or 'half'
+    const [halfDayPeriod, setHalfDayPeriod] = useState('morning'); // 'morning' or 'afternoon'
+
     // states for CompOff Applications
     const [compOffApplications, setCompOffApplications] = useState([]);
     const [monthlyRecords, setMonthlyRecords] = useState([]);
@@ -126,10 +130,33 @@ export default function CompOff({ navigation }) {
         setHours(numericValue);
     };
 
+    // Handle comp-off type change
+    const handleCompOffTypeChange = (type) => {
+        setCompOffType(type);
+        // Reset hours when switching to half-day
+        if (type === 'half') {
+            setHours('0.5');
+        }
+    };
+
+    // Handle half-day period change
+    const handleHalfDayPeriodChange = (period) => {
+        setHalfDayPeriod(period);
+    };
+
     const handleSubmit = async () => {
         if (!startDate || !endDate || !reason || !hours) {
             Alert.alert('Error', 'Please fill in all fields');
             return;
+        }
+
+        // Validate half-day input
+        if (compOffType === 'half') {
+            const hoursValue = parseFloat(hours);
+            if (hoursValue !== 0.5) {
+                Alert.alert('Error', 'Half-day should be 0.5 days');
+                return;
+            }
         }
     
         setIsSubmitting(true);
@@ -148,6 +175,8 @@ export default function CompOff({ navigation }) {
                 reason: reason,
                 status: 'Pending',
                 createdAt: serverTimestamp(),
+                compOffType: compOffType,
+                halfDayPeriod: compOffType === 'half' ? halfDayPeriod : null,
             };
     
             await addDoc(collection(FIRESTORE_DB, 'compOff'), compOffData);
@@ -158,6 +187,8 @@ export default function CompOff({ navigation }) {
             setEndDate(new Date());
             setHours('');
             setReason('');
+            setCompOffType('full');
+            setHalfDayPeriod('morning');
         } catch (error) {
             console.error('Error submitting comp-off request:', error);
             Alert.alert('Error', 'Failed to submit request. Please try again.');
@@ -166,32 +197,33 @@ export default function CompOff({ navigation }) {
         }
     };
 
-    const renderCompOffApplication = ({ item }) => (
-        <View style={styles.applicationCard}>
-            <View style={styles.applicationHeader}>
-                <Text style={[styles.status, { color: item.status === 'Approved' ? 'green' : item.status === 'Pending' ? 'grey' : 'orange' }]}>
-                    {item.status}
-                </Text>
-            </View>
-            <Text style={styles.requestDate}>Request Date: {format(item.requestDate, 'dd-MM-yyyy')}</Text>
-            <Text style={styles.dateRange}>
-                Date Range: {format(new Date(item.startDateTime), 'dd-MM-yyyy')} to {format(new Date(item.endDateTime), 'dd-MM-yyyy')}
-            </Text>
-            <Text style={styles.duration}>CompOff Duration: {item.duration} days</Text>
-            <Text style={styles.reason}>Reason: {item.reason}</Text>
-        </View>
-    );
+    const renderCompOffApplication = ({ item }) => {
+        // comp-off type and half-day period
+        const getCompOffTypeDisplay = () => {
+            if (item.compOffType === 'half') {
+                const period = item.halfDayPeriod === 'morning' ? 'Morning' : 'Afternoon';
+                return `Half day (${period})`;
+            }
+            return 'Full day';
+        };
 
-    // const renderMonthlyRecord = ({ item }) => (
-    //     <View style={styles.recordRow}>
-    //         <Text style={styles.recordCell}>{item.day}</Text>
-    //         <Text style={styles.recordCell}>{item.date}</Text>
-    //         <Text style={styles.recordCell}>{item.checkIn}</Text>
-    //         <Text style={styles.recordCell}>{item.checkOut}</Text>
-    //         <Text style={styles.recordCell}>{item.hours}</Text>
-    //         <Text style={styles.recordCell}>{item.type}</Text>
-    //     </View>
-    // );
+        return (
+            <View style={styles.applicationCard}>
+                <View style={styles.applicationHeader}>
+                    <Text style={[styles.status, { color: item.status === 'Approved' ? 'green' : item.status === 'Pending' ? 'grey' : 'orange' }]}>
+                        {item.status}
+                    </Text>
+                </View>
+                <Text style={styles.requestDate}>Request Date: {format(item.requestDate, 'dd-MM-yyyy')}</Text>
+                <Text style={styles.dateRange}>
+                    Date Range: {format(new Date(item.startDateTime), 'dd-MM-yyyy')} to {format(new Date(item.endDateTime), 'dd-MM-yyyy')}
+                </Text>
+                <Text style={styles.duration}>CompOff Duration: {item.duration} days</Text>
+                <Text style={styles.compOffType}>Type: {getCompOffTypeDisplay()}</Text>
+                <Text style={styles.reason}>Reason: {item.reason}</Text>
+            </View>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -229,16 +261,81 @@ export default function CompOff({ navigation }) {
                         </TouchableOpacity>
                     </View>
 
+                    {/* Comp-off Type Selection */}
+                    <View style={styles.typeContainer}>
+                        <Text style={{fontWeight: 'bold'}}>Comp-off Type:</Text>
+                        <View style={styles.typeButtonsContainer}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.typeButton,
+                                    compOffType === 'full' && styles.typeButtonActive
+                                ]}
+                                onPress={() => handleCompOffTypeChange('full')}
+                            >
+                                <Text style={[
+                                    styles.typeButtonText,
+                                    compOffType === 'full' && styles.typeButtonTextActive
+                                ]}>Full Day</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.typeButton,
+                                    compOffType === 'half' && styles.typeButtonActive
+                                ]}
+                                onPress={() => handleCompOffTypeChange('half')}
+                            >
+                                <Text style={[
+                                    styles.typeButtonText,
+                                    compOffType === 'half' && styles.typeButtonTextActive
+                                ]}>Half Day</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Half-day Period Selection (only show for half-day) */}
+                    {compOffType === 'half' && (
+                        <View style={styles.periodContainer}>
+                            <Text style={{fontWeight: 'bold'}}>Half-day Period:</Text>
+                            <View style={styles.periodButtonsContainer}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.periodButton,
+                                        halfDayPeriod === 'morning' && styles.periodButtonActive
+                                    ]}
+                                    onPress={() => handleHalfDayPeriodChange('morning')}
+                                >
+                                    <Text style={[
+                                        styles.periodButtonText,
+                                        halfDayPeriod === 'morning' && styles.periodButtonTextActive
+                                    ]}>Morning</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.periodButton,
+                                        halfDayPeriod === 'afternoon' && styles.periodButtonActive
+                                    ]}
+                                    onPress={() => handleHalfDayPeriodChange('afternoon')}
+                                >
+                                    <Text style={[
+                                        styles.periodButtonText,
+                                        halfDayPeriod === 'afternoon' && styles.periodButtonTextActive
+                                    ]}>Afternoon</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+
                     <View style={styles.dateContainer}>
                         <Text style={{fontWeight: 'bold'}}>Apply for Days:</Text>
                         <TextInput
                             style={styles.daysInput}
                             value={hours}
                             onChangeText={handleDaysChange}
-                            placeholder="Enter Days"
+                            placeholder={compOffType === 'half' ? "0.5" : "Enter Days"}
                             keyboardType="numeric"
-                            maxLength={2}
+                            maxLength={compOffType === 'half' ? 3 : 2}
                             placeholderTextColor="#000000"
+                            editable={compOffType === 'full'} // Disable editing for half-day
                         />
                     </View>
 
@@ -397,6 +494,74 @@ const styles = StyleSheet.create({
         borderRadius: 5,
         marginRight: 10,
     },
+    typeContainer: {
+        marginBottom: 10,
+        padding: 10,
+        backgroundColor: 'white',
+        borderRadius: 5,
+        marginRight: 10,
+    },
+    typeButtonsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 5,
+    },
+    typeButton: {
+        flex: 1,
+        padding: 10,
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 5,
+        marginHorizontal: 5,
+        alignItems: 'center',
+        backgroundColor: '#f8f8f8',
+    },
+    typeButtonActive: {
+        backgroundColor: '#007AFF',
+        borderColor: '#007AFF',
+    },
+    typeButtonText: {
+        color: '#333',
+        fontWeight: '500',
+    },
+    typeButtonTextActive: {
+        color: 'white',
+        fontWeight: 'bold',
+    },
+    periodContainer: {
+        marginBottom: 10,
+        padding: 10,
+        backgroundColor: 'white',
+        borderRadius: 5,
+        marginRight: 10,
+    },
+    periodButtonsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 5,
+    },
+    periodButton: {
+        flex: 1,
+        padding: 10,
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 5,
+        marginHorizontal: 5,
+        alignItems: 'center',
+        backgroundColor: '#f8f8f8',
+    },
+    periodButtonActive: {
+        backgroundColor: '#007AFF',
+        borderColor: '#007AFF',
+    },
+    periodButtonText: {
+        color: '#333',
+        fontWeight: '500',
+    },
+    periodButtonTextActive: {
+        color: 'white',
+        fontWeight: 'bold',
+    },
     datePickerButton: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -474,6 +639,10 @@ const styles = StyleSheet.create({
     duration: {
         marginBottom: 5,
     },
+    compOffType: {
+        marginBottom: 5,
+        fontWeight: 'bold',
+    },
     tableHeader: {
         flexDirection: 'row',
         backgroundColor: '#f0f0f0',
@@ -510,17 +679,6 @@ const styles = StyleSheet.create({
     pageNumber: {
         marginHorizontal: 10,
     },
-    // totalHoursContainer: {
-    //     marginTop: 15,
-    //     padding: 10,
-    //     backgroundColor: '#f0f8ff',
-    //     borderRadius: 5,
-    // },
-    // totalHours: {
-    //     fontSize: 16,
-    //     fontWeight: 'bold',
-    //     textAlign: 'center',
-    // },
     monthHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
