@@ -240,15 +240,15 @@ export default function CompOff({ navigation }) {
         <ScrollView>
             <View>
                 <View style={styles.dateContainer}>
-                        <Text style={{fontWeight: 'bold'}}>Start Date:</Text>
-                        <TouchableOpacity
-                            style={styles.datePickerButton}
-                            onPress={() => setShowStartPicker(true)}
-                        >
-                            <Text>{formatDate(startDate)}</Text>
-                            <Ionicons name="calendar" size={20} color="#007AFF" />
-                        </TouchableOpacity>
-                    </View>
+                    <Text style={{fontWeight: 'bold'}}>Start Date:</Text>
+                    <TouchableOpacity
+                        style={styles.datePickerButton}
+                        onPress={() => setShowStartPicker(true)}
+                    >
+                        <Text>{formatDate(startDate)}</Text>
+                        <Ionicons name="calendar" size={20} color="#007AFF" />
+                    </TouchableOpacity>
+                </View>
 
                     <View style={styles.dateContainer}>
                         <Text style={{fontWeight: 'bold'}}>End Date:</Text>
