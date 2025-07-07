@@ -78,8 +78,8 @@ export default function Dashboard({ navigation }) {
             const leaveDataResult = await fetchLeaveRequest();
 
             // Add hardcoded date range from April 28 to May 2
-            const startDate = new Date(2024, 3, 28); // April 28, 2024 (months are 0-indexed)
-            const endDate = new Date(2024, 4, 2);    // May 2, 2024
+            const startDate = new Date(2024, 3, 28);
+            const endDate = new Date(2024, 4, 2); 
 
             // Mark all days in the range
             const currentDate = new Date(startDate);
@@ -478,7 +478,20 @@ export default function Dashboard({ navigation }) {
                             'Select Option',
                             `What would you like to do for ${day.dateString}?`,
                             [
-                                { text: 'Add Task', onPress: () => setModalVisible(true) },
+                                { 
+                                    text: 'Add Task', 
+                                    onPress: () => {
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+                                        const selected = new Date(day.dateString);
+                                        selected.setHours(0, 0, 0, 0);
+                                        if (selected < today) {
+                                            Alert.alert('Invalid Date', 'Cannot add tasks for past dates');
+                                            return;
+                                        }
+                                        setModalVisible(true);
+                                    }
+                                 },
                                 { text: 'View Tasks', onPress: () => viewTasksForDate(day.dateString) },
                                 { text: 'Cancel', style: 'cancel' }
                             ]

@@ -237,8 +237,18 @@ export default function AdminTasks({ navigation }) {
                             `What would you like to do for ${day.dateString}?`,
                             [
                                 {
-                                    text: 'Add Task',
-                                    onPress: () => setModalVisible(true)
+                                    text: 'Add Task', 
+                                    onPress: () => {
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+                                        const selected = new Date(day.dateString);
+                                        selected.setHours(0, 0, 0, 0);
+                                        if (selected < today) {
+                                            Alert.alert('Invalid Date', 'Cannot add tasks for past dates');
+                                            return;
+                                        }
+                                        setModalVisible(true);
+                                    }
                                 },
                                 {
                                     text: 'View Tasks',

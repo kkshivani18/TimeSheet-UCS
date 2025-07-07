@@ -180,6 +180,17 @@ export default function Tasks({ route, navigation }) {
     };
 
     const handleAddTask = () => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const selected = new Date(selectedDate);
+        selected.setHours(0, 0, 0, 0);
+
+        if (selected < today) {
+            Alert.alert('Invalid Date', 'Cannot add tasks for past dates');
+            return;
+        }
+
         // If no date is selected, prompt the user to select a date first
         if (!selectedDate) {
             Alert.alert(
