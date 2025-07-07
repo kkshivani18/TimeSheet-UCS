@@ -24,12 +24,8 @@ export default function CompOff({ navigation }) {
 
     // states for CompOff Applications
     const [compOffApplications, setCompOffApplications] = useState([]);
-    const [monthlyRecords, setMonthlyRecords] = useState([]);
-    const [totalAvailableHours, setTotalAvailableHours] = useState(0);
-    const [currentPage, setCurrentPage] = useState(1);
     const recordsPerPage = 7;
 
-    const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [compOffUnsubscribe, setCompOffUnsubscribe] = useState(null);
 
     useEffect(() => {

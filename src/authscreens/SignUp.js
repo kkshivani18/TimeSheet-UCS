@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Image, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Image, TouchableOpacity, Alert, Animated } from 'react-native';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +17,7 @@ export default function SignUp() {
     const [messageType, setMessageType] = useState('');
     const [passwordVisible, setPasswordVisible] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [showError, setShowError] = useState(false);
 
     const navigation = useNavigation();
 
@@ -30,6 +31,12 @@ export default function SignUp() {
         return passwordRegex.test(password);
     };
 
+    const showFloatingError = (msg) => {
+        setMessage(msg);
+        setShowError(true);
+        setTimeout(() => setShowError(false), 3000); 
+    };
+    
     const handleSignUp = async () => {
         try {
             setLoading(true);
@@ -41,13 +48,12 @@ export default function SignUp() {
             }
 
             if (!validateEmail(email)) {
-                setMessage('Please provide a valid email address.');
-                setMessageType('error');
+                showFloatingError('Please provide a valid email address.');
                 return;
             }
 
             if (!validatePassword(password)) {
-                setMessage('Password must have at least: \n - 1 capital letter \n - 1 small letter \n - 1 number \n - 1 special character \n - 8 characters long password');
+                setMessage('Password must be at least 8 characters long, that includes a capital letter, a number and special character.');
                 setMessageType('error');
                 return;
             }
@@ -71,8 +77,7 @@ export default function SignUp() {
             setMessageType('success');
             navigation.navigate('Authentication', { email: userCredential.user.email });
         } catch (error) {
-            console.error(error);
-            Alert.alert('Error', error.message);
+            Alert.alert('Error', "Email already in use.");
         } finally {
             setLoading(false);
         }
@@ -138,6 +143,11 @@ export default function SignUp() {
                 Already have an account?
                 <Text onPress={() => navigation.navigate('Login')} style={styles.loginLink}> Login</Text>
             </Text>
+            {/* {showError && (
+                <View style={styles.floatingError}>
+                    <Text style={styles.floatingErrorText}>{message}</Text>
+                </View>
+            )} */}
         </View>
     );
 }
@@ -248,4 +258,22 @@ const styles = StyleSheet.create({
     loginLink: {
         color: 'darkblue',
     },
+
+    // floatingError: {
+    // position: 'absolute',
+    // bottom: 40, 
+    // left: 20,
+    // right: 20,
+    // backgroundColor: 'rgba(255,0,0,0.9)',
+    // padding: 12,
+    // borderRadius: 8,
+    // alignItems: 'center',
+    // zIndex: 1000,
+    // },
+
+    // floatingErrorText: {
+    //     color: 'white',
+    //     fontWeight: 'bold',
+    //     textAlign: 'center',
+    // }
 });
