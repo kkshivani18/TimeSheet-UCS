@@ -194,10 +194,10 @@ export default function Attendance({ navigation }) {
             const isHoliday = paidHolidays[formattedCurrentDate] ? true : false;
 
             // overtime hours
-            let overtimeHours = 0;
-            if (workedMinutes > 480) {
-                overtimeHours = (workedMinutes - 480) / 60;
-            }
+            // let overtimeHours = 0;
+            // if (workedMinutes > 480) {
+            //     overtimeHours = (workedMinutes - 480) / 60;
+            // }
 
             // Update the attendance record
             await updateDoc(doc(FIRESTORE_DB, 'attendance', docId), {
@@ -677,7 +677,7 @@ export default function Attendance({ navigation }) {
 
                 const isPartialDay = hasCheckedIn && hasCheckedOut &&
                                     workedHoursNumeric > 0 &&
-                                    workedHoursNumeric <= 4;
+                                    workedHoursNumeric < 9;
 
                 // Determine which style to apply based on priority
                 let rowStyle;
@@ -801,10 +801,10 @@ export default function Attendance({ navigation }) {
             workedHoursNumeric = item.totalWorkedMinutes / 60;
         }
 
-        // Check if it's a partial day (≤ 4 hours worked)
+        // Check if it's a partial day (< 9 hours worked)
         const isPartialDay = hasCheckedIn && hasCheckedOut &&
                             workedHoursNumeric > 0 &&
-                            workedHoursNumeric <= 4;
+                            workedHoursNumeric < 9;
 
         // Determine what to display for check-in
         let checkInDisplay;
@@ -865,7 +865,7 @@ export default function Attendance({ navigation }) {
             // Weekend with check-in/out - light blue background
             rowStyle.push(styles.weekendWorkRow);
         } else if (!isWeekend && !isHoliday && !isLeaveDay && isPartialDay) {
-            // Partial day (≤ 4 hours) on regular weekday - light orange background
+            // Partial day (< 9 hours) on regular weekday - light orange background
             rowStyle.push(styles.partialDayRow);
         } else if (isLeaveDay) {
             // Leave day without check-in/out - light red background

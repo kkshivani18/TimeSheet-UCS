@@ -58,6 +58,8 @@
 ![Admin Dashboard](/images/adminDashboard.png)
 
 #### Leave Application Management 
+
+![Leave Management](/images/leaveapplyadmin.png)
  
 #### Attendance Management 
 
