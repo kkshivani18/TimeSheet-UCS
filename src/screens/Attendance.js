@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Modal, Share, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { getDoc, doc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { getDoc, doc, setDoc, updateDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isWeekend } from 'date-fns';
 import XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system';
@@ -34,6 +35,12 @@ export default function Attendance({ navigation }) {
     // Pagination for monthly view
     const [recordsPerPage] = useState(7);
     const [currentPage, setCurrentPage] = useState(1);
+
+    // regularize attendance
+    const [regularizationDate, setRegularizationDate] = useState(new Date())
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [isRegularizing, setIsRegularizing] = useState(false);
+    const [mode, setMode] = useState('date');
 
     const user = FIREBASE_AUTH.currentUser;
 
@@ -206,11 +213,7 @@ export default function Attendance({ navigation }) {
                 totalWorkedMinutes: workedMinutes,
                 isWeekend: isWeekendDay,
                 isHoliday: isHoliday,
-                isLeave: isLeaveDay,
-                // Ensure overtimeHours is also stored as a number with two decimal places
-                overtimeHours: overtimeHours > 0 ? parseFloat(overtimeHours.toFixed(2)) : 0,
                 holidayName: isHoliday ? paidHolidays[formattedCurrentDate] : null,
-                leaveType: isLeaveDay ? leaveDays[formattedCurrentDate] : null
             });
 
             setCheckOutTime(currentTime);
@@ -226,6 +229,49 @@ export default function Attendance({ navigation }) {
             setIsLoading(false);
         }
     };
+
+    // regularize attendance
+    const requestRegularization = async(date) => {
+        if (!user) return;
+        setIsRegularizing(true);
+        try {
+            const dateObj = regularizationDate;
+            const formattedDate = dateObj.toLocaleDateString();
+            const isoDate = format(dateObj, 'dd-MM-yyyy'); 
+        
+            const docId = `${user.uid}_${formattedDate.replace(/\//g, '-')}`;
+            const docRef = doc(FIRESTORE_DB, 'attendance', docId);
+            const docSnap = await getDoc(docRef);
+        
+            const baseData = {
+                userId: user.uid,
+                docId: docId,
+                date: formattedDate,
+                checkInTime: null,
+                checkOutTime: null,
+                workedHours: null,
+                totalWorkedMinutes: 0,
+                regularization_requested: true,
+                regularization_date: isoDate,
+                regularization_status: 'Pending'
+            };
+        
+            if (docSnap.exists()) {
+                await updateDoc(docRef, {
+                    regularization_requested: true,
+                    regularization_date: isoDate,
+                    regularization_status: 'Pending'
+                });
+            } else {
+                await setDoc(docRef, baseData);
+            }
+            Alert.alert('Request Sent', 'Your regularization request has been sent to admin');
+            } catch (e) {
+                Alert.alert('Error', 'Failed to send request.');
+            } finally {
+                setIsRegularizing(false);
+            }
+    }
 
     // function to format date strings
     const formatDateTime = (dateTimeString) => {
@@ -989,6 +1035,43 @@ export default function Attendance({ navigation }) {
                         </TouchableOpacity>
                     </View>
 
+                    {/* Regularize attendance */}
+                    <View style={styles.regularizationCard}>
+                        <Text style={styles.regularizationTitle}>Regularization Request</Text>
+                        <TouchableOpacity
+                            style={styles.regularizationDatePicker}
+                            onPress={() => setShowDatePicker(true)}
+                        >
+                            <Text style={styles.regularizationDateText}>
+                                {regularizationDate.toDateString()}
+                            </Text>
+                        </TouchableOpacity>
+                        {showDatePicker && (
+                            <DateTimePicker
+                                value={regularizationDate}
+                                mode="date"
+                                display="default"
+                                onChange={(event, selectedDate) => {
+                                    setShowDatePicker(false);
+                                    if (selectedDate) setRegularizationDate(selectedDate);
+                                }}
+                                maximumDate={new Date()}
+                            />
+                        )}
+                        <TouchableOpacity
+                            style={[
+                                styles.regularizationButton,
+                                isRegularizing && styles.regularizationButtonDisabled
+                            ]}
+                            onPress={requestRegularization}
+                            disabled={isRegularizing}
+                        >
+                            <Text style={styles.regularizationButtonText}>
+                                {isRegularizing ? 'Submitting...' : 'Regularize'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
                     {/* Attendance Records Section */}
                     <View style={styles.sectionContainer}>
                         <View style={styles.sectionHeader}>
@@ -1301,7 +1384,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-around',
         width: '100%',
-        marginBottom: 20,
+        marginBottom: 13,
     },
     checkinButton: {
         backgroundColor: '#007AFF',
@@ -1553,11 +1636,61 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
     },
 
-    // New styles for holiday rows
+    // styles for holiday rows
     holidayWorkRow: {
         backgroundColor: '#E3F2FD',
     },
     holidayRow: {
         backgroundColor: '#E3F2FD',
+    },
+
+    // styles for regularize
+    regularizationCard: {
+        backgroundColor: 'white',
+        borderRadius: 15,
+        padding: 15,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.27,
+        shadowRadius: 4.65,
+        elevation: 6,
+        width: '100%',
+        marginBottom: 16,
+    },
+    regularizationTitle: {
+        fontWeight: 'bold',
+        fontSize: 16,
+        marginBottom: 10,
+        // alignSelf: 'center'
+    },
+    regularizationDatePicker: {
+        borderWidth: 1,
+        borderColor: '#007AFF',
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 10,
+        alignItems: 'center',
+        width: 260,
+        alignSelf: 'center'
+    },
+    regularizationDateText: {
+        color: '#007AFF',
+        fontSize: 15,
+    },
+    regularizationButton: {
+        backgroundColor: '#007AFF',
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: 'center',
+        width: 260,
+        alignSelf: 'center'
+    },
+    regularizationButtonDisabled: {
+        backgroundColor: '#A9A9A9',
+    },
+    regularizationButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 15,
     },
 });

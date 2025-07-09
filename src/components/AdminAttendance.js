@@ -558,6 +558,8 @@ export default function AdminAttendance({ navigation }) {
                 </TouchableOpacity>
             </View>
 
+            {/* regularize attendance requests */}
+
             <View style={styles.userSelectionContainer}>
                 <Text style={styles.sectionTitle}>Select Employee:</Text>
                 <View style={styles.pickerContainer}>
