@@ -237,7 +237,7 @@ export default function Attendance({ navigation }) {
         try {
             const dateObj = regularizationDate;
             const formattedDate = dateObj.toLocaleDateString();
-            const isoDate = format(dateObj, 'dd-MM-yyyy'); 
+            // const isoDate = format(dateObj, 'dd-MM-yyyy'); 
         
             const docId = `${user.uid}_${formattedDate.replace(/\//g, '-')}`;
             const docRef = doc(FIRESTORE_DB, 'attendance', docId);
@@ -252,14 +252,14 @@ export default function Attendance({ navigation }) {
                 workedHours: null,
                 totalWorkedMinutes: 0,
                 regularization_requested: true,
-                regularization_date: isoDate,
+                regularization_date: formattedDate,
                 regularization_status: 'Pending'
             };
         
             if (docSnap.exists()) {
                 await updateDoc(docRef, {
                     regularization_requested: true,
-                    regularization_date: isoDate,
+                    regularization_date: formattedDate,
                     regularization_status: 'Pending'
                 });
             } else {

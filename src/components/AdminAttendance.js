@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, FlatList, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, FlatList, Platform, ScrollView } from 'react-native';
 import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, query, getDocs, where, orderBy, addDoc } from 'firebase/firestore';
+import { collection, query, getDocs, where, orderBy, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks } from 'date-fns';
 import { Icon } from 'react-native-elements';
 import { Picker } from '@react-native-picker/picker';
@@ -21,6 +21,10 @@ export default function AdminAttendance({ navigation }) {
     const [selectedWeek, setSelectedWeek] = useState(currentDate);
     const [weeklyAttendance, setWeeklyAttendance] = useState([]);
     const [paidHolidays, setPaidHolidays] = useState({});
+
+    // regularize requests
+    const [pendingRequests, setPendingRequests] = useState([]);
+    const [loadingRequests, setLoadingRequests] = useState(false);
 
     useEffect(() => {
         checkAdminAccess();
@@ -167,10 +171,10 @@ export default function AdminAttendance({ navigation }) {
 
             // Initialize attendance data with empty values for all days
             const initialAttendance = daysInWeek.map(day => {
-                const formattedDate = format(day, 'dd-MM-yyyy');
+                const formattedDate = format(day, 'dd-MM');
                 return {
                     date: format(day, 'yyyy-MM-dd'),
-                    formattedDate: format(day, 'dd-MM'),
+                    formattedDate: formattedDate,
                     dayOfWeek: format(day, 'EEE'),
                     checkInTime: null,
                     checkOutTime: null,
@@ -372,7 +376,7 @@ export default function AdminAttendance({ navigation }) {
                     continue;
                 }
 
-                const formattedDate = format(parsedDate, 'dd-MM-yyyy');
+                const formattedDate = format(parsedDate, 'dd-MM');
                 const year = parsedDate.getFullYear();
 
                 const holidayData = {
@@ -424,7 +428,7 @@ export default function AdminAttendance({ navigation }) {
     };
 
     // Modify the renderAttendanceRow function to include holiday styling
-    const renderAttendanceRow = ({ item, index }) => {
+        const renderAttendanceRow = ({ item, index }) => {
         const isWeekend = item.dayOfWeek === 'Sun' || item.dayOfWeek === 'Sat';
         const isHoliday = item.isHoliday;
         const hasCheckedIn = item.checkInTime !== null && item.checkInTime !== undefined && item.checkInTime !== '';
@@ -513,7 +517,7 @@ export default function AdminAttendance({ navigation }) {
         };
 
         return (
-            <View style={rowStyle}>
+            <View style={rowStyle} key={item.date || index}>
                 <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.dayOfWeek}</Text>
                 <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.formattedDate}</Text>
                 <Text style={[styles.tableCell, { flex: 2 }, getTextStyle(checkInDisplay)]}>
@@ -527,6 +531,54 @@ export default function AdminAttendance({ navigation }) {
                 </Text>
             </View>
         );
+    };
+
+    // regularize attendance
+    useEffect(() => {
+        const getRequests = async () => {
+            setLoadingRequests(true);
+            const q = query(
+                collection(FIRESTORE_DB, 'attendance'),
+                where('regularization_requested', '==', true),
+                where('regularization_status', '==', 'Pending')
+            );
+            const querySnapshot = await getDocs(q);
+            setPendingRequests(querySnapshot.docs.map(docSnap => ({
+                id: docSnap.id,
+                ...docSnap.data()
+            })));
+            setLoadingRequests(false);
+        };
+        getRequests();
+    }, []);
+
+    const getUsernameById = (userId) => {
+        const user = users.find(u => u.id === userId);
+        return user ? user.username : userId;
+    };
+
+    const approveRegularizationRequest = async (request) => {
+        try {
+            // Use the stored regularization_date 
+            const date = request.regularization_date;
+            const checkInTime = new Date(`${date}T09:00:00.000+05:30`).toISOString();
+            const checkOutTime = new Date(`${date}T18:00:00.000+05:30`).toISOString();
+    
+            await updateDoc(doc(FIRESTORE_DB, 'attendance', request.id), {
+                checkInTime,
+                checkOutTime,
+                workedHours: 9,
+                totalWorkedMinutes: 540,
+                regularization_status: 'Approved'
+            });
+            Alert.alert('Success', 'Regularization approved and attendance updated.');
+    
+            // Refresh the list
+            setPendingRequests(prev => prev.filter(r => r.id !== request.id));
+        } catch (error) {
+            Alert.alert('Error', 'Failed to approve regularization.');
+            console.error(error);
+        }
     };
 
     if (!isAdmin) {
@@ -547,61 +599,98 @@ export default function AdminAttendance({ navigation }) {
                 </View>
             </View>
 
-            <View style={styles.holidayUploadCard}>
-                <Text style={styles.holidayUploadTitle}>Upload Holidays (.csv)</Text>
-                <TouchableOpacity 
-                    style={styles.uploadButton}
-                    onPress={handleHolidaysUpload}
-                >
-                    <Icon name="upload" size={20} color="#007AFF" />
-                    <Text style={styles.uploadButtonText}>Upload CSV File</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* regularize attendance requests */}
-
-            <View style={styles.userSelectionContainer}>
-                <Text style={styles.sectionTitle}>Select Employee:</Text>
-                <View style={styles.pickerContainer}>
-                    <Picker
-                        selectedValue={selectedUser?.id}
-                        onValueChange={handleUserChange}
-                        style={styles.picker}
+            <ScrollView 
+                style={styles.scrollContainer}
+                contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }}
+            >
+                <View style={styles.holidayUploadCard}>
+                    <Text style={styles.holidayUploadTitle}>Upload Holidays (.csv)</Text>
+                    <TouchableOpacity 
+                        style={styles.uploadButton}
+                        onPress={handleHolidaysUpload}
                     >
-                        <Picker.Item label="Select an employee" value="" />
-                        {users.map(user => (
-                            <Picker.Item key={user.id} label={user.username} value={user.id} />
-                        ))}
-                    </Picker>
+                        <Icon name="upload" size={20} color="#007AFF" />
+                        <Text style={styles.uploadButtonText}>Upload CSV File</Text>
+                    </TouchableOpacity>
                 </View>
-            </View>
 
-            {selectedUser && (
-                <View style={styles.sectionContainer}>
-                    <View style={styles.sectionHeader}>
-                        <Icon name="access-time" size={20} color="#007AFF" />
-                        <Text style={styles.sectionTitle}>
-                            Attendance Records for {selectedUser.username}
-                        </Text>
-                    </View>
-
-                    <View style={styles.weekNavigation}>
-                        <TouchableOpacity onPress={goToPreviousWeek} style={styles.weekNavButton}>
-                            <Icon name="chevron-left" size={24} color="#007AFF" />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.currentWeekButton}>
-                            <Text style={styles.currentWeekText}>
-                                {format(startOfWeek(selectedWeek, { weekStartsOn: 0 }), 'dd MMM')} - {format(endOfWeek(selectedWeek, { weekStartsOn: 0 }), 'dd MMM yyyy')}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={goToNextWeek} style={styles.weekNavButton}>
-                            <Icon name="chevron-right" size={24} color="#007AFF" />
-                        </TouchableOpacity>
-                    </View>
-
-                    {isLoading ? (
-                        <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+                {/* regularize attendance requests */}
+                <View style={styles.regularizationSection}>
+                    <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Pending Regularization Requests</Text>
+                    {loadingRequests ? (
+                        <ActivityIndicator size="small" color="#007AFF" />
+                    ) : pendingRequests.length === 0 ? (
+                        <Text style={{ color: '#888', fontStyle: 'italic', marginVertical: 10 }}>No pending requests.</Text>
                     ) : (
+                        pendingRequests.map((req) => (
+                            <View key={req.id} style={styles.regularizationCard}>
+                                <View style={{ marginBottom: 6 }}>
+                                    <Text>
+                                        <Text style={{ fontWeight: 'bold' }}>User: </Text>
+                                        <Text style={{ fontWeight: 'bold' }}>{getUsernameById(req.userId)}</Text>
+                                    </Text>
+                                    <Text>
+                                        <Text style={{ fontWeight: 'normal' }}>UserId: </Text>
+                                        <Text style={{ fontWeight: 'normal' }}>{req.userId}</Text>
+                                    </Text>
+                                    <Text>
+                                        <Text style={{ fontWeight: 'normal' }}>Date: </Text>
+                                        <Text style={{ fontWeight: 'normal' }}>{req.regularization_date}</Text>
+                                    </Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.approveButton}
+                                    onPress={() => approveRegularizationRequest(req)}
+                                >
+                                    <Text style={styles.approveButtonText}>Approve</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))
+                    )}
+                </View>
+
+                <View style={styles.userSelectionContainer}>
+                    <Text style={styles.sectionTitle}>Select Employee:</Text>
+                    <View style={styles.pickerContainer}>
+                        <Picker
+                            selectedValue={selectedUser?.id}
+                            onValueChange={handleUserChange}
+                            style={styles.picker}
+                        >
+                            <Picker.Item label="Select an employee" value="" />
+                            {users.map(user => (
+                                <Picker.Item key={user.id} label={user.username} value={user.id} />
+                            ))}
+                        </Picker>
+                    </View>
+                </View>
+
+                {selectedUser && (
+                    <View style={styles.sectionContainer}>
+                        <View style={styles.sectionHeader}>
+                            <Icon name="access-time" size={20} color="#007AFF" />
+                            <Text style={styles.sectionTitle}>
+                                Attendance Records for {selectedUser.username}
+                            </Text>
+                        </View>
+                
+                        <View style={styles.weekNavigation}>
+                            <TouchableOpacity onPress={goToPreviousWeek} style={styles.weekNavButton}>
+                                <Icon name="chevron-left" size={24} color="#007AFF" />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.currentWeekButton}>
+                                <Text style={styles.currentWeekText}>
+                                    {format(startOfWeek(selectedWeek, { weekStartsOn: 0 }), 'dd MMM')} - {format(endOfWeek(selectedWeek, { weekStartsOn: 0 }), 'dd MMM yyyy')}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={goToNextWeek} style={styles.weekNavButton}>
+                                <Icon name="chevron-right" size={24} color="#007AFF" />
+                            </TouchableOpacity>
+                        </View>
+                
+                        {isLoading ? (
+                            <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+                        ) : (
                         <View style={styles.tableContainer}>
                             <View style={styles.tableHeader}>
                                 <Text style={[styles.tableHeaderCell, { flex: 1.3 }]}>Day</Text>
@@ -610,16 +699,20 @@ export default function AdminAttendance({ navigation }) {
                                 <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Check Out</Text>
                                 <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Worked Hours</Text>
                             </View>
-                            <FlatList
+                            {/* <FlatList
                                 data={weeklyAttendance}
                                 keyExtractor={(item) => item.date}
                                 renderItem={renderAttendanceRow}
                                 showsVerticalScrollIndicator={false}
-                            />
+                            /> */}
+                            <View style={styles.tableContainer}>
+                              {weeklyAttendance.map((item, index) => renderAttendanceRow({ item, index }))}
+                            </View>
                         </View>
                     )}
-                </View>
-            )}
+                    </View>
+                )}
+            </ScrollView>
         </View>
     );
 }
@@ -666,6 +759,10 @@ const styles = StyleSheet.create({
     picker: {
         height: 50,
     },
+    scrollContainer: {
+        flex: 1,
+        backgroundColor: '#f0f0f0',
+    },
 
     // Section container matching Attendance.js
     sectionContainer: {
@@ -683,7 +780,9 @@ const styles = StyleSheet.create({
         width: '100%',
         marginTop: -5,
         marginBottom: 20,
-        flex: 1,
+        maxWidth: 500,
+        alignSelf: 'center',
+        // flex: 1,
     },
     sectionHeader: {
         flexDirection: 'row',
@@ -721,7 +820,6 @@ const styles = StyleSheet.create({
         borderColor: '#ddd',
         borderRadius: 8,
         overflow: 'hidden',
-        marginBottom: 15,
         flex: 1,
     },
     tableHeader: {
@@ -801,6 +899,8 @@ const styles = StyleSheet.create({
         shadowRadius: 4.65,
         elevation: 6,
         width: '100%',
+        maxWidth: 500,
+        alignSelf: 'center',
         marginBottom: 20,
     },
     holidayUploadTitle: {
@@ -822,5 +922,50 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#007AFF',
         marginLeft: 10,
+    },
+    regularizationSection: {
+        width: '100%',
+        backgroundColor: 'white',
+        borderRadius: 15,
+        padding: 15,
+        marginBottom: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.10,
+        shadowRadius: 3,
+        elevation: 2,
+        maxWidth: 500,
+        alignSelf: 'center',
+    },
+    regularizationCard: {
+        borderWidth: 1,
+        borderColor: '#007AFF',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 12,
+        backgroundColor: '#F3F8FF',
+        shadowColor: '#007AFF',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    regularizationText: {
+        fontSize: 15,
+        color: '#333',
+        marginBottom: 6,
+    },
+    approveButton: {
+        backgroundColor: '#007AFF',
+        paddingVertical: 8,
+        paddingHorizontal: 18,
+        borderRadius: 6,
+        alignItems: 'center',
+        marginRight: 10,
+    },
+    approveButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 14,
     },
 });
