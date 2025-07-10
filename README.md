@@ -63,4 +63,6 @@
  
 #### Attendance Management 
 
+![Attendance Management](/images/adminAttendance.png)
+
 #### Compensatory Off Application Management 
