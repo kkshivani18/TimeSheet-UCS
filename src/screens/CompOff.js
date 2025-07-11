@@ -37,7 +37,7 @@ export default function CompOff({ navigation }) {
                 compOffUnsubscribe();
             }
         };
-    }, [selectedMonth]);
+    }, []);
 
     const fetchCompOffApplications = async () => {
         try {

@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFE5E5',
     },
     compOffType: {
-        marginBottom: 5,
+        marginBottom: 2,
         fontWeight: 'bold',
     }
 });

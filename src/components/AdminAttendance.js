@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     userSelectionContainer: {
-        width: '90%',
+        width: '100%',
         marginBottom: 15,
     },
     sectionTitle: {
@@ -762,6 +762,7 @@ const styles = StyleSheet.create({
     scrollContainer: {
         flex: 1,
         backgroundColor: '#f0f0f0',
+        width: '100%'
     },
 
     // Section container matching Attendance.js
@@ -780,7 +781,7 @@ const styles = StyleSheet.create({
         width: '100%',
         marginTop: -5,
         marginBottom: 20,
-        maxWidth: 500,
+        maxWidth: 900,
         alignSelf: 'center',
         // flex: 1,
     },
