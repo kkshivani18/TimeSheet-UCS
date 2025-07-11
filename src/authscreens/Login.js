@@ -62,7 +62,7 @@ export default function Login() {
                 setMessage('Error logging in: User not found');
                 setMessageType('error');
             } else {
-                setMessage('Email or Password is incorrect. Ensure email is in the correct format and password is entered correctly');
+                setMessage('Please check your Email and Password ');
                 setMessageType('error');
             }
         }
@@ -107,6 +107,7 @@ export default function Login() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 placeholderTextColor="#000000"
+                autoCapitalize='none'
             />
 
             <View style={styles.passwordContainer}>
@@ -117,6 +118,7 @@ export default function Login() {
                     onChangeText={setPassword}
                     secureTextEntry={!passwordVisible}
                     placeholderTextColor="#000000"
+                    autoCapitalize='none'
                 />
                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
                     <Ionicons

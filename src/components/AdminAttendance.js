@@ -724,6 +724,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         backgroundColor: '#f0f0f0',
+        // width: '100%'
     },
     header: {
         width: '100%',

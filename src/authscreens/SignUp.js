@@ -114,6 +114,7 @@ export default function SignUp() {
                 value={email}
                 onChangeText={setEmail}
                 placeholderTextColor="#000000"
+                autoCapitalize='none'
             />
 
             <View style={styles.passwordContainer}>
@@ -124,6 +125,7 @@ export default function SignUp() {
                     onChangeText={setPassword}
                     secureTextEntry={!passwordVisible}
                     placeholderTextColor="#000000"
+                    autoCapitalize='none'
                 />
                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
                     <Ionicons
