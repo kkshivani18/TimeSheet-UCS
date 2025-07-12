@@ -66,3 +66,5 @@
 ![Attendance Management](/images/adminAttendance.png)
 
 #### Compensatory Off Application Management 
+
+![CompOff Management](/images/comoffreqadmin.png)
