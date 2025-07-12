@@ -559,10 +559,26 @@ export default function AdminAttendance({ navigation }) {
 
     const approveRegularizationRequest = async (request) => {
         try {
-            // Use the stored regularization_date 
-            const date = request.regularization_date;
-            const checkInTime = new Date(`${date}T09:00:00.000+05:30`).toISOString();
-            const checkOutTime = new Date(`${date}T18:00:00.000+05:30`).toISOString();
+            // parsing regularization_date which is in MM/DD/YYYY format
+            const dateString = request.regularization_date;
+            
+            // Parse the date string (MM/DD/YYYY format)
+            const dateParts = dateString.split('/');
+            if (dateParts.length !== 3) {
+                throw new Error('Invalid date format');
+            }
+            
+            const month = parseInt(dateParts[0]) - 1; // 0-indexed
+            const day = parseInt(dateParts[1]);
+            const year = parseInt(dateParts[2]);
+            
+            // Create Date objects for check-in and check-out times
+            const checkInDate = new Date(year, month, day, 9, 0, 0); // 9:00 AM
+            const checkOutDate = new Date(year, month, day, 18, 0, 0); // 6:00 PM
+            
+            // Convert to ISO strings
+            const checkInTime = checkInDate.toISOString();
+            const checkOutTime = checkOutDate.toISOString();
     
             await updateDoc(doc(FIRESTORE_DB, 'attendance', request.id), {
                 checkInTime,
