@@ -39,6 +39,9 @@ app-example
 
 # environment variables
 .env
+*/.env
+src/backend/.env
+src/backend/node_modules
 
 # apk files
 *.apk

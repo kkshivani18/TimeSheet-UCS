@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Image, TouchableOpacity, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios'; 
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, TextInput, Button, StyleSheet, Image, TouchableOpacity, Alert, Animated } from 'react-native';
+import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { Ionicons } from "@expo/vector-icons";
+import { doc, setDoc } from 'firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
-// const { userSignUpSchema } = require('../backend/models/user.zod')
-const API_URL = 'http://127.0.0.1:3000/api/user'
+// import { router } from 'expo-router';
+// import * as Font from 'expo-font';
 
 export default function SignUp() {
     const [username, setUsername] = useState('');
@@ -16,40 +17,67 @@ export default function SignUp() {
     const [messageType, setMessageType] = useState('');
     const [passwordVisible, setPasswordVisible] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [showError, setShowError] = useState(false);
 
     const navigation = useNavigation();
 
-    const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    const validatePassword = (password) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(password);
+    const validateEmail = (email) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
 
+    const validatePassword = (password) => {
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+        return passwordRegex.test(password);
+    };
+
+    const showFloatingError = (msg) => {
+        setMessage(msg);
+        setShowError(true);
+        setTimeout(() => setShowError(false), 3000); 
+    };
+    
     const handleSignUp = async () => {
         try {
-          setLoading(true);
-          if (!username) {
-            setMessage('Please enter your username');
-            setMessageType('error');
-            return;
-          }
-          if (!validateEmail(email)) {
-            setMessage('Please provide a valid email address.');
-            setMessageType('error');
-            return;
-          }
-          if (!validatePassword(password)) {
-            setMessage('Password must be at least 8 characters long, including a capital letter, a number, and a special character.');
-            setMessageType('error');
-            return;
-          }
-      
-          const response = await axios.post(`${API_URL}/signup`, { email, password, username });
-          setMessage('Account created successfully! Please log in.');
-          setMessageType('success');
-          setTimeout(() => {
-              navigation.replace('Login');
-          }, 1000);
+            setLoading(true);
+
+            if (username === '') {
+                setMessage('Please enter your username');
+                setMessageType('error');
+                return;
+            }
+
+            if (!validateEmail(email)) {
+                showFloatingError('Please provide a valid email address.');
+                return;
+            }
+
+            if (!validatePassword(password)) {
+                setMessage('Password must be at least 8 characters long, that includes a capital letter, a number and special character.');
+                setMessageType('error');
+                return;
+            }
+
+            const userCredential = await createUserWithEmailAndPassword(
+                FIREBASE_AUTH,
+                email,
+                password
+            );
+
+            // Create user document with role
+            await setDoc(doc(FIRESTORE_DB, 'users', userCredential.user.uid), {
+                username: username,
+                email: email.toLowerCase(),
+                role: 'user',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            });
+
+            setMessage('Success', 'Account created successfully!');
+            setMessageType('success');
+            navigation.navigate('Authentication', { email: userCredential.user.email });
         } catch (error) {
-            setMessage(error.response?.data?.message || 'Email already in use or server error.');
-            setMessageType('error');
+            Alert.alert('Error', "Email already in use.");
         } finally {
             setLoading(false);
         }
@@ -58,14 +86,20 @@ export default function SignUp() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Image source={require('../../images/UCS logo.png')} style={styles.logo} />
+                <Image
+                    source={require('../../images/UCS logo.png')}
+                    style={styles.logo}
+                />
             </View>
+
             <Text style={styles.title}>Create an account</Text>
+
             {message ? (
                 <View style={[styles.messageBox, messageType === 'success' ? styles.successBox : styles.errorBox]}>
                     <Text style={styles.message}>{message}</Text>
                 </View>
             ) : null}
+
             <TextInput
                 style={styles.input}
                 placeholder="Enter Your Username"
@@ -73,14 +107,16 @@ export default function SignUp() {
                 onChangeText={setUsername}
                 placeholderTextColor="#000000"
             />
+
             <TextInput
                 style={styles.input}
                 placeholder="Enter Your Email"
                 value={email}
                 onChangeText={setEmail}
                 placeholderTextColor="#000000"
-                autoCapitalize="none"
+                autoCapitalize='none'
             />
+
             <View style={styles.passwordContainer}>
                 <TextInput
                     style={styles.passwordInput}
@@ -89,19 +125,31 @@ export default function SignUp() {
                     onChangeText={setPassword}
                     secureTextEntry={!passwordVisible}
                     placeholderTextColor="#000000"
-                    autoCapitalize="none"
+                    autoCapitalize='none'
                 />
                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
-                    <Ionicons name={passwordVisible ? 'eye-off' : 'eye'} size={24} color="gray" style={styles.eyeIcon} />
+                    <Ionicons
+                        name={passwordVisible ? 'eye-off' : 'eye'}
+                        size={24}
+                        color="gray"
+                        style={styles.eyeIcon}
+                    />
                 </TouchableOpacity>
             </View>
+
             <View style={styles.buttonContainer}>
                 <Button title="Sign Up" onPress={handleSignUp} />
             </View>
+
             <Text style={styles.footerText}>
                 Already have an account?
                 <Text onPress={() => navigation.navigate('Login')} style={styles.loginLink}> Login</Text>
             </Text>
+            {/* {showError && (
+                <View style={styles.floatingError}>
+                    <Text style={styles.floatingErrorText}>{message}</Text>
+                </View>
+            )} */}
         </View>
     );
 }
@@ -212,4 +260,22 @@ const styles = StyleSheet.create({
     loginLink: {
         color: 'darkblue',
     },
+
+    // floatingError: {
+    // position: 'absolute',
+    // bottom: 40, 
+    // left: 20,
+    // right: 20,
+    // backgroundColor: 'rgba(255,0,0,0.9)',
+    // padding: 12,
+    // borderRadius: 8,
+    // alignItems: 'center',
+    // zIndex: 1000,
+    // },
+
+    // floatingErrorText: {
+    //     color: 'white',
+    //     fontWeight: 'bold',
+    //     textAlign: 'center',
+    // }
 });

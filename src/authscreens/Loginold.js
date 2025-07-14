@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Image, Modal } from 'react-native';
-import axios from 'axios'; 
+import { FIREBASE_AUTH, FIREBASE_APP, FIRESTORE_DB } from '../firebaseConfig';
+import { signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail } from 'firebase/auth';
+import { getDoc, doc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-// const { userLoginSchema } = require('../backend/models/user.zod')
-const API_URL = 'http://127.0.0.1:3000/api/user'
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -16,44 +15,91 @@ export default function Login() {
     const [role, setRole] = useState('');
     const [resetEmail, setResetEmail] = useState('');
     const [forgotPasswordModalVisible, setForgotPasswordModalVisible] = useState(false);
-    const [loading, setLoading] = useState(false);
 
     const navigation = useNavigation();
 
     const handleLogin = async () => {
+        if (!FIREBASE_AUTH) {
+            console.log('FIREBASE_AUTH is undefined');
+            setMessage('Authentication service not initialized');
+            setMessageType('error');
+            return;
+        }
         try {
-            setLoading(true);
-            const response = await axios.post(`${API_URL}/login`, { email, password });
-            const { token, userId, role, username } = response.data;
-            await AsyncStorage.setItem('token', token);
-            await AsyncStorage.setItem('userId', userId);
-            await AsyncStorage.setItem('username', username);
-            await AsyncStorage.setItem('role', role);
+            const userCredential = await signInWithEmailAndPassword(FIREBASE_AUTH, email, password);
+            const user = userCredential.user;
 
-            // Navigation based on role
-            if (role === 'admin') {
-                navigation.replace('AdminDashboard');
+            if (user.emailVerified) {
+                console.log('User is successfully logged in');
+
+                // Fetch user role from Firestore
+                const userDoc = await getDoc(doc(FIRESTORE_DB, 'users', user.uid));
+                if (userDoc.exists()) {
+                    const userRole = userDoc.data().role;
+                    setRole(userRole);
+
+                    // Navigate based on role
+                    if (userRole === 'admin') {
+                        navigation.replace('Admin');
+                    } else {
+                        navigation.replace('Dashboard');
+                    }
+
+                    setMessage('You have successfully logged in');
+                    setMessageType('success');
+                } else {
+                    setMessage('Error retrieving user data');
+                    setMessageType('error');
+                }
             } else {
-                navigation.replace('Dashboard');
-                console.log("done via mongodb and jwt")
+                setMessage('Please verify your email address before logging in.');
+                setMessageType('error');
+                await sendEmailVerification(user);
             }
         } catch (error) {
-            setMessage(error.response?.data?.message || 'Login failed. Please try again.');
-            setMessageType('error');
-        } finally {
-            setLoading(false);
+            console.log('Login error:', error);
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                setMessage('Error logging in: User not found');
+                setMessageType('error');
+            } else {
+                setMessage('Please check your Email and Password ');
+                setMessageType('error');
+            }
         }
-      };
+    };
+
+    const handleForgotPassword = async () => {
+        if (!resetEmail) {
+            setMessage('Please enter your email to reset password');
+            setMessageType('error');
+            return;
+        }
+        try {
+            await sendPasswordResetEmail(FIREBASE_AUTH, resetEmail);
+            setMessage('Password reset email sent. Check your inbox.');
+            setMessageType('success');
+            setResetEmail(''); 
+        } catch (error) {
+            console.log('Forgot password error:', error);
+            setMessage('Error sending reset email. Check your email address.');
+            setMessageType('error');
+        }
+    };
 
     return (
         <View style={styles.container}>
-            <Image source={require('../../images/UCS logo.png')} style={styles.logo} />
+            <Image
+                source={require('../../images/UCS logo.png')}
+                style={styles.logo}
+            />
             <Text style={styles.title}>Login</Text>
+
             {message ? (
                 <View style={[styles.messageBox, messageType === 'success' ? styles.successBox : styles.errorBox]}>
                     <Text style={styles.message}>{message}</Text>
                 </View>
             ) : null}
+
             <TextInput
                 style={styles.input}
                 placeholder="Enter Your Email"
@@ -61,8 +107,9 @@ export default function Login() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 placeholderTextColor="#000000"
-                autoCapitalize="none"
+                autoCapitalize='none'
             />
+
             <View style={styles.passwordContainer}>
                 <TextInput
                     style={styles.passwordInput}
@@ -71,12 +118,18 @@ export default function Login() {
                     onChangeText={setPassword}
                     secureTextEntry={!passwordVisible}
                     placeholderTextColor="#000000"
-                    autoCapitalize="none"
+                    autoCapitalize='none'
                 />
                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
-                    <Ionicons name={passwordVisible ? 'eye-off' : 'eye'} size={24} color="gray" style={styles.eyeIcon} />
+                    <Ionicons
+                        name={passwordVisible ? 'eye-off' : 'eye'}
+                        size={24}
+                        color="gray"
+                        style={styles.eyeIcon}
+                    />
                 </TouchableOpacity>
             </View>
+            
             <View style={styles.forgotPasswordContainer}>
                 <Text
                     style={[styles.forgotpasswordText, styles.signUpLink]}
@@ -85,6 +138,7 @@ export default function Login() {
                     Forgot Password?
                 </Text>
             </View>
+
             <Modal
                 visible={forgotPasswordModalVisible}
                 transparent={true}
@@ -121,9 +175,11 @@ export default function Login() {
                     </View>
                 </View>
             </Modal>
+
             <View style={styles.buttonContainer}>
                 <Button title="Log In" onPress={handleLogin} />
             </View>
+
             <Text style={styles.footerText}>
                 Don't have an account yet?
                 <Text onPress={() => navigation.navigate('SignUp')} style={styles.signUpLink}> Sign Up</Text>
