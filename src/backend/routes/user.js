@@ -66,4 +66,17 @@ router.get('/authenticate', authMiddleware, async(req, res) => {
     res.json(user);
 })
 
+
+// for Dashboard.js
+
+router.get('/:id', async(req, res) => {
+    try {
+        const user = await User.findOne({ userId: req.params.id });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json({ username: user.username, email: user.email, role: user.role });
+      } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+})
+
 module.exports = router;

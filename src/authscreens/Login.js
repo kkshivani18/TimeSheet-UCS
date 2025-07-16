@@ -32,7 +32,7 @@ export default function Login() {
 
             // Navigation based on role
             if (role === 'admin') {
-                navigation.replace('AdminDashboard');
+                navigation.replace('Admin');
             } else {
                 navigation.replace('Dashboard');
                 console.log("done via mongodb and jwt")

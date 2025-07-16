@@ -3,9 +3,11 @@ import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Ale
 import { Calendar } from 'react-native-calendars';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { FIREBASE_AUTH, FIREBASE_APP, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, addDoc, getDoc, doc, getDocs, query, where } from 'firebase/firestore';
+// import { FIREBASE_AUTH, FIREBASE_APP, FIRESTORE_DB } from '../firebaseConfig';
+// import { collection, addDoc, getDoc, doc, getDocs, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -39,20 +41,24 @@ export default function Dashboard({ navigation }) {
     const [taskCountsByDate, setTaskCountsByDate] = useState({});
     const [paidHolidays, setPaidHolidays] = useState({});
 
-    const user = FIREBASE_AUTH.currentUser;
+    // const user = FIREBASE_AUTH.currentUser;
 
     useEffect(() => {
         const fetchUserData = async () => {
-            const user = FIREBASE_AUTH.currentUser;
-            if (user) {
-                const userDoc = await getDoc(doc(FIRESTORE_DB, 'users', user.uid));
-                if (userDoc.exists()) {
-                    setUsername(userDoc.data().username);
-                } else {
-                    setUsername('User');
+            try {
+                const token = await AsyncStorage.getItem('token');
+                const userId = await AsyncStorage.getItem('userId');
+                if (!userId) {
+                  setUsername('Guest');
+                  return;
                 }
-            } else {
-                setUsername('Guest');
+                const response = await axios.get(`http://localhost:3000/api/user/${userId}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                setUsername(response.data.username || 'User');
+              } catch (error) {
+                setUsername('User');
+                console.error('Error fetching user data:', error);
             }
         };
 
@@ -172,7 +178,6 @@ export default function Dashboard({ navigation }) {
                 // Calculate worked hours
                 let workedHours = 0;
 
-                // First try to use totalWorkedMinutes if available
                 if (attendance.totalWorkedMinutes) {
                     workedHours = attendance.totalWorkedMinutes / 60;
                 }
@@ -221,7 +226,7 @@ export default function Dashboard({ navigation }) {
             if (today.getMonth() + 1 === selectedMonth && today.getFullYear() === selectedYear) {
                 attendanceData[todayStr] = {
                     workedHours: 9,
-                    totalWorkedMinutes: 540, // 9 hours = 540 minutes
+                    totalWorkedMinutes: 540, 
                     status: 'fullDay'
                 };
             }
@@ -238,21 +243,20 @@ export default function Dashboard({ navigation }) {
     
     const fetchPaidHolidays = async () => {
         try {
+            const token = await AsyncStorage.getItem('token');
             const currentYear = new Date().getFullYear();
-            const holidaysQuery = query(
-                collection(FIRESTORE_DB, 'paidHolidays'),
-                where('year', '==', currentYear)
-            );
-            const querySnapshot = await getDocs(holidaysQuery);
+            const response = await axios.get(`http://localhost:3000/api/holidays/${currentYear}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            // Convert array to map if needed
             const holidaysMap = {};
-            querySnapshot.docs.forEach(doc => {
-                const holiday = doc.data();
-                holidaysMap[holiday.date] = holiday.description;
+            response.data.forEach(holiday => {
+              holidaysMap[holiday.date] = holiday.description;
             });
             setPaidHolidays(holidaysMap);
-        } catch (error) {
+          } catch (error) {
             console.error('Error fetching paid holidays:', error);
-        }
+          }
     };
 
     const getCurrentMonthDays = () => {
@@ -302,7 +306,7 @@ export default function Dashboard({ navigation }) {
                 return;
             }
 
-            const user = FIREBASE_AUTH.currentUser;
+            // const user = FIREBASE_AUTH.currentUser;
             if (!user) {
                 Alert.alert('Error', 'No user logged in');
                 return;
@@ -395,15 +399,14 @@ export default function Dashboard({ navigation }) {
         }
     }
 
-    const handleLogout = () => {
-        FIREBASE_AUTH.signOut()
-            .then(() => {
-                console.log('User logged out');
-                navigation.navigate('Login');
-            })
-            .catch((error) => {
-                console.error('Error logging out:', error);
-            });
+    const handleLogout = async () => {
+        try {
+            await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role'])
+            navigation.replace('Login');
+        } catch(error) {
+            console.log("Error logging out", error);
+            Alert.alert('Error', 'Failed to log out. Please try again.');
+        }
     };
 
     return (
