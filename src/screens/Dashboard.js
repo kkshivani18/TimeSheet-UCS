@@ -34,16 +34,15 @@ export default function Dashboard({ navigation }) {
     const [modalVisible, setModalVisible] = useState(false);
     const [taskHeading, setTaskHeading] = useState('');
     const [taskDescription, setTaskDescription] = useState('');
-    // const [taskDeadline, setTaskDeadline] = useState('');
     const [deadlineDate, setDeadlineDate] = useState(new Date());
     const [showPicker, setShowPicker] = useState(false);
     const [pickerMode, setPickerMode] = useState('date');
     const [username, setUsername] = useState('');
-    const [taskCountsByDate, setTaskCountsByDate] = useState({});
     const [paidHolidays, setPaidHolidays] = useState({});
     const [leaves, setLeaves] = useState([]);
     const [leaveData, setLeaveData] = useState({});
     const [attendanceData, setAttendanceData] = useState({});
+    const [user, setUser] = useState(null);
 
     // const user = FIREBASE_AUTH.currentUser;
     useEffect(() => {
@@ -59,6 +58,7 @@ export default function Dashboard({ navigation }) {
                   headers: { Authorization: `Bearer ${token}` }
                 });
                 setUsername(response.data.username || 'User');
+                setUser(response.data)
               } catch (error) {
                 setUsername('User');
                 console.error('Error fetching user data:', error);
@@ -78,40 +78,6 @@ export default function Dashboard({ navigation }) {
 
     
     // Fetch leaves from backend
-    // useEffect(() => {
-    //     const fetchData = async () => {
-    //         // Get leave data from Firestore
-    //         const leaveDataResult = await fetchLeaveRequest();
-
-    //         // Add hardcoded date range from April 28 to May 2
-    //         const startDate = new Date(2024, 3, 28);
-    //         const endDate = new Date(2024, 4, 2); 
-
-    //         // Mark all days in the range
-    //         const currentDate = new Date(startDate);
-    //         while (currentDate <= endDate) {
-    //             const dateStr = currentDate.toISOString().split('T')[0];
-
-    //             // Add the date to the leave data
-    //             leaveDataResult[dateStr] = {
-    //                 leaveType: 'fullDay',
-    //                 status: 'leave'
-    //             };
-
-    //             // Move to next day
-    //             currentDate.setDate(currentDate.getDate() + 1);
-    //         }
-
-    //         setLeaveData(leaveDataResult);
-
-    //         // Get attendance data from Firestore
-    //         const attendanceDataResult = await fetchAttendanceData();
-    //         setAttendanceData(attendanceDataResult);
-    //     };
-
-    //     fetchData();
-    // }, [selectedMonth, selectedYear]);
-
     const fetchLeavesFromBackend = async (userId, year, month) => {
         try {
           const token = await AsyncStorage.getItem('token');
@@ -348,7 +314,7 @@ export default function Dashboard({ navigation }) {
         console.log('leaveData:', leaveData);
         console.log('paidHolidays:', paidHolidays);
         console.log('markedDates:', markedDates);
-        
+
         return markedDates;
     };
 
@@ -416,46 +382,46 @@ export default function Dashboard({ navigation }) {
         });
     };
 
-    const fetchLeaveRequest = async () => {
-        if(!user) return {};
+    // const fetchLeaveRequest = async () => {
+    //     if(!user) return {};
 
-        try {
-            const leaveQuery = query(
-                collection(FIRESTORE_DB, 'leaveRequests'),
-                where('userId', '==', user.uid),
-                where('status', '==', 'Approved')
-            );
+    //     try {
+    //         const leaveQuery = query(
+    //             collection(FIRESTORE_DB, 'leaveRequests'),
+    //             where('userId', '==', user.uid),
+    //             where('status', '==', 'Approved')
+    //         );
 
-            const querySnapshot = await getDocs(leaveQuery);
-            const leaveData = {};
+    //         const querySnapshot = await getDocs(leaveQuery);
+    //         const leaveData = {};
 
-            // processing each leave request
-            querySnapshot.forEach(doc => {
-                const leave = doc.data();
-                const startDate = new Date(leave.startDate);
-                const endDate = new Date(leave.endDate);
+    //         // processing each leave request
+    //         querySnapshot.forEach(doc => {
+    //             const leave = doc.data();
+    //             const startDate = new Date(leave.startDate);
+    //             const endDate = new Date(leave.endDate);
 
-                // Marking all days in the leave period
-                const currentDate = new Date(startDate);
-                while (currentDate <= endDate) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
+    //             // Marking all days in the leave period
+    //             const currentDate = new Date(startDate);
+    //             while (currentDate <= endDate) {
+    //                 const dateStr = currentDate.toISOString().split('T')[0];
 
-                    leaveData[dateStr] = {
-                        leaveType: leave.leaveType,
-                        status: 'leave'
-                    };
+    //                 leaveData[dateStr] = {
+    //                     leaveType: leave.leaveType,
+    //                     status: 'leave'
+    //                 };
 
-                    // Move to next day
-                    currentDate.setDate(currentDate.getDate() + 1);
-                }
-            });
+    //                 // Move to next day
+    //                 currentDate.setDate(currentDate.getDate() + 1);
+    //             }
+    //         });
 
-            return leaveData;
-        } catch (error) {
-            console.error('Error fetching leave requests:', error);
-            return {};
-        }
-    }
+    //         return leaveData;
+    //     } catch (error) {
+    //         console.error('Error fetching leave requests:', error);
+    //         return {};
+    //     }
+    // }
 
     const handleLogout = async () => {
         try {

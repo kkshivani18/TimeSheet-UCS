@@ -44,4 +44,15 @@ router.get('/', async (req, res) => {
   }
 });
 
+// get all leave requests for a user
+router.get('/user/:userId', async(req, res) => {
+  try {
+    const { userId } = req.params;
+    const leaves = await Leave.find({ userId }).sort({ createdAt: -1 });
+    res.json(leaves);
+  } catch (err) {
+    res.status(500).json({error: err.message });
+  }
+})
+
 module.exports = router;

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, FlatList, Modal } from 'react-native';
-import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
+// import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Picker } from '@react-native-picker/picker';
+import axios from 'axios';
 
 export default function LeaveApplication({ navigation }) {
     const [leaveReason, setLeaveReason] = useState('');
@@ -21,51 +23,97 @@ export default function LeaveApplication({ navigation }) {
     const [selectedFilter, setSelectedFilter] = useState('all');
     const [isFiltered, setIsFiltered] = useState(false);
     const [leaveApplicationsUnsubscribe, setLeaveApplicationsUnsubscribe] = useState(null);
+    const [user, setUser] = useState(null);
+
+    // useEffect(() => {
+    //     // Fetch current user's role
+    //     const fetchUserRole = async () => {
+    //         const user = FIREBASE_AUTH.currentUser;
+    //         if (!user) return;
+
+    //         try {
+    //             const userDocRef = doc(FIRESTORE_DB, 'users', user.uid);
+    //             const userDoc = await getDoc(userDocRef);
+    //             if (userDoc.exists()) {
+    //                 setUserRole(userDoc.data().role || 'user');
+    //             }
+    //         } catch (error) {
+    //             console.error("Error fetching user role:", error);
+    //         }
+    //     };
+
+    //     // Real-time listener for user's leave applications
+    //     const user = FIREBASE_AUTH.currentUser;
+    //     if (!user) return;
+
+    //     fetchUserRole();
+
+    //     const q = query(
+    //         collection(FIRESTORE_DB, 'leaveRequests'),
+    //         where('userId', '==', user.uid)
+    //     );
+
+    //     const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    //         const applications = querySnapshot.docs.map(doc => ({
+    //             id: doc.id,
+    //             ...doc.data(),
+    //             canModify: doc.data().status === 'pending'
+    //         }));
+    //         setLeaveApplications(applications);
+    //     }, (error) => {
+    //         if (FIREBASE_AUTH.currentUser) {
+    //             console.error("Error fetching leave applications:", error);
+    //             Alert.alert('Error', 'Could not load leave applications');
+    //         }
+    //     });
+
+    //     setLeaveApplicationsUnsubscribe(() => unsubscribe);
+    // }, []);
 
     useEffect(() => {
-        // Fetch current user's role
-        const fetchUserRole = async () => {
-            const user = FIREBASE_AUTH.currentUser;
-            if (!user) return;
-
-            try {
-                const userDocRef = doc(FIRESTORE_DB, 'users', user.uid);
-                const userDoc = await getDoc(userDocRef);
-                if (userDoc.exists()) {
-                    setUserRole(userDoc.data().role || 'user');
-                }
-            } catch (error) {
-                console.error("Error fetching user role:", error);
-            }
+        const fetchUserAndLeaves = async () => {
+          try {
+            const token = await AsyncStorage.getItem('token');
+            const userId = await AsyncStorage.getItem('userId');
+            if (!userId) return;
+      
+            // Fetch user info if needed
+            const userResponse = await axios.get(`http://localhost:3000/api/user/${userId}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            setUser(userResponse.data);
+      
+            // Fetch leave applications from backend
+            const leavesResponse = await axios.get(
+              `http://localhost:3000/api/leaves/user/${userId}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setLeaveApplications(leavesResponse.data);
+          } catch (error) {
+            console.error('Error fetching leave applications:', error);
+          }
         };
+      
+        fetchUserAndLeaves();
+      }, []);
 
-        // Real-time listener for user's leave applications
-        const user = FIREBASE_AUTH.currentUser;
-        if (!user) return;
-
-        fetchUserRole();
-
-        const q = query(
-            collection(FIRESTORE_DB, 'leaveRequests'),
-            where('userId', '==', user.uid)
-        );
-
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const applications = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                canModify: doc.data().status === 'pending'
-            }));
-            setLeaveApplications(applications);
-        }, (error) => {
-            if (FIREBASE_AUTH.currentUser) {
-                console.error("Error fetching leave applications:", error);
-                Alert.alert('Error', 'Could not load leave applications');
-            }
-        });
-
-        setLeaveApplicationsUnsubscribe(() => unsubscribe);
-    }, []);
+    //   useEffect(() => {
+    //     const fetchLeaves = async () => {
+    //       const token = await AsyncStorage.getItem('token');
+    //       const userId = await AsyncStorage.getItem('userId');
+    //       if (!userId) return;
+    //       try {
+    //         const res = await axios.get(
+    //           `http://localhost:3000/api/leaves/user/${userId}`,
+    //           { headers: { Authorization: `Bearer ${token}` } }
+    //         );
+    //         setLeaveApplications(res.data);
+    //       } catch (e) {
+    //         console.error(e);
+    //       }
+    //     };
+    //     fetchLeaves();
+    //   }, []);   
 
     const formatDate = (date) => {
         const year = date.getFullYear();
@@ -164,23 +212,14 @@ export default function LeaveApplication({ navigation }) {
         }
     };
 
-    const handleLogout = () => {
-        // Clean up the Firestore listener first
-        if (leaveApplicationsUnsubscribe) {
-            leaveApplicationsUnsubscribe();
-            setLeaveApplicationsUnsubscribe(null);
+    const handleLogout = async () => {
+        try {
+            await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role'])
+            navigation.replace('Login');
+        } catch(error) {
+            console.log("Error logging out", error);
+            Alert.alert('Error', 'Failed to log out. Please try again.');
         }
-
-        // Sign out from Firebase Auth
-        FIREBASE_AUTH.signOut()
-            .then(() => {
-                    console.log('User logged out');
-                    navigation.navigate('Login');
-                })
-                .catch((error) => {
-                    console.error('Error logging out:', error);
-                navigation.navigate('Login');
-                });
     };
 
     // Render individual leave application
@@ -322,7 +361,7 @@ export default function LeaveApplication({ navigation }) {
                 <FlatList
                     data={isFiltered ? filteredApplications : leaveApplications}
                     renderItem={renderLeaveApplication}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) => item._id}
                     ListEmptyComponent={
                         <Text style={styles.noApplicationsText}>
                             No leave applications found
