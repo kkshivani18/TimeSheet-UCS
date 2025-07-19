@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, ScrollView, Platform } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, ScrollView, Platform, FlatList } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -10,6 +10,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useStateForPath } from '@react-navigation/native';
 
 const months = [
     { label: 'January', value: 1 },
@@ -40,9 +41,11 @@ export default function Dashboard({ navigation }) {
     const [username, setUsername] = useState('');
     const [taskCountsByDate, setTaskCountsByDate] = useState({});
     const [paidHolidays, setPaidHolidays] = useState({});
+    const [leaves, setLeaves] = useState([]);
+    const [leaveData, setLeaveData] = useState({});
+    const [attendanceData, setAttendanceData] = useState({});
 
     // const user = FIREBASE_AUTH.currentUser;
-
     useEffect(() => {
         const fetchUserData = async () => {
             try {
@@ -73,44 +76,99 @@ export default function Dashboard({ navigation }) {
         setSelectedYear(itemValue);
     };
 
-    // State to store leave data and attendance data
-    const [leaveData, setLeaveData] = useState({});
-    const [attendanceData, setAttendanceData] = useState({});
+    
+    // Fetch leaves from backend
+    // useEffect(() => {
+    //     const fetchData = async () => {
+    //         // Get leave data from Firestore
+    //         const leaveDataResult = await fetchLeaveRequest();
 
-    // Fetch leave and attendance data when month or year changes
+    //         // Add hardcoded date range from April 28 to May 2
+    //         const startDate = new Date(2024, 3, 28);
+    //         const endDate = new Date(2024, 4, 2); 
+
+    //         // Mark all days in the range
+    //         const currentDate = new Date(startDate);
+    //         while (currentDate <= endDate) {
+    //             const dateStr = currentDate.toISOString().split('T')[0];
+
+    //             // Add the date to the leave data
+    //             leaveDataResult[dateStr] = {
+    //                 leaveType: 'fullDay',
+    //                 status: 'leave'
+    //             };
+
+    //             // Move to next day
+    //             currentDate.setDate(currentDate.getDate() + 1);
+    //         }
+
+    //         setLeaveData(leaveDataResult);
+
+    //         // Get attendance data from Firestore
+    //         const attendanceDataResult = await fetchAttendanceData();
+    //         setAttendanceData(attendanceDataResult);
+    //     };
+
+    //     fetchData();
+    // }, [selectedMonth, selectedYear]);
+
+    const fetchLeavesFromBackend = async (userId, year, month) => {
+        try {
+          const token = await AsyncStorage.getItem('token');
+          const response = await axios.get(
+            `http://localhost:3000/api/leaves?userId=${userId}&year=${year}&month=${month.toString().padStart(2, '0')}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          return response.data; 
+        } catch (error) {
+          console.error('Error fetching leaves:', error);
+          return [];
+        }
+    };
+      
+    // Convert leave periods to a date map for the calendar
+    const processLeavesToDateMap = (leaves) => {
+        const leaveDates = {};
+        leaves.forEach(leave => {
+          const start = new Date(leave.startDate);
+          const end = new Date(leave.endDate);
+          let current = new Date(start);
+          while (current <= end) {
+            const dateStr = current.toISOString().split('T')[0];
+            leaveDates[dateStr] = {
+              selected: true,
+              selectedColor: '#DC143C', 
+              startingDay: true,
+              endingDay: true,
+              color: '#DC143C',
+              textColor: 'white',
+            };
+            current.setDate(current.getDate() + 1);
+          }
+        });
+        return leaveDates;
+    };
+
     useEffect(() => {
         const fetchData = async () => {
-            // Get leave data from Firestore
-            const leaveDataResult = await fetchLeaveRequest();
-
-            // Add hardcoded date range from April 28 to May 2
-            const startDate = new Date(2024, 3, 28);
-            const endDate = new Date(2024, 4, 2); 
-
-            // Mark all days in the range
-            const currentDate = new Date(startDate);
-            while (currentDate <= endDate) {
-                const dateStr = currentDate.toISOString().split('T')[0];
-
-                // Add the date to the leave data
-                leaveDataResult[dateStr] = {
-                    leaveType: 'fullDay',
-                    status: 'leave'
-                };
-
-                // Move to next day
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-
-            setLeaveData(leaveDataResult);
-
-            // Get attendance data from Firestore
-            const attendanceDataResult = await fetchAttendanceData();
-            setAttendanceData(attendanceDataResult);
+          const userId = await AsyncStorage.getItem('userId');
+          if (!userId) return;
+      
+          // Fetch leaves from backend
+          const leavesArr = await fetchLeavesFromBackend(userId, selectedYear, selectedMonth);
+          setLeaves(leavesArr);
+      
+          // Process leaves to date map
+          const leaveDataResult = processLeavesToDateMap(leavesArr);
+          setLeaveData(leaveDataResult);
+      
+          // fetch attendance and other data as before
+          const attendanceDataResult = await fetchAttendanceData();
+          setAttendanceData(attendanceDataResult);
         };
-
+      
         fetchData();
-    }, [selectedMonth, selectedYear]);
+      }, [selectedMonth, selectedYear]);
 
     // Function to fetch attendance data
     const fetchAttendanceData = async () => {
@@ -138,14 +196,11 @@ export default function Dashboard({ navigation }) {
                 // Skip if no check-in or check-out time
                 if (!attendance.checkInTime || !attendance.checkOutTime) return;
 
-                // Get the date string in YYYY-MM-DD format for the calendar
                 // Handle different date formats (MM/DD/YYYY or DD/MM/YYYY)
                 let attendanceDate;
                 if (attendance.date.includes('/')) {
                     // Split the date string and create a date object
                     const dateParts = attendance.date.split('/');
-                    // Assuming date format is MM/DD/YYYY in US locale or DD/MM/YYYY in other locales
-                    // We'll try to handle both formats
                     if (dateParts.length === 3) {
                         // Check if first part is likely a month (1-12) or day (1-31)
                         const firstPart = parseInt(dateParts[0]);
@@ -193,7 +248,7 @@ export default function Dashboard({ navigation }) {
                     workedHours = diffMs / (1000 * 60 * 60);
                 }
 
-                // Store the totalWorkedMinutes for this day - ensure it's a number
+                // Store the totalWorkedMinutes
                 let minutes;
 
                 if (attendance.totalWorkedMinutes !== undefined && attendance.totalWorkedMinutes !== null) {
@@ -265,10 +320,9 @@ export default function Dashboard({ navigation }) {
         // Mark leave days (red)
         Object.keys(leaveData).forEach(date => {
             markedDates[date] = {
+                ...leaveData[date],
                 selected: true,
                 selectedColor: '#DC143C',
-                startingDay: true,
-                endingDay: true,
                 color: '#DC143C',
                 textColor: 'white',
             };
@@ -291,6 +345,10 @@ export default function Dashboard({ navigation }) {
                 };
             }
         });
+        console.log('leaveData:', leaveData);
+        console.log('paidHolidays:', paidHolidays);
+        console.log('markedDates:', markedDates);
+        
         return markedDates;
     };
 
@@ -473,7 +531,7 @@ export default function Dashboard({ navigation }) {
                         textMonthFontSize: 16,
                         textDayHeaderFontSize: 14,
                     }}
-                    markedDates={getCurrentMonthDays()} // <-- now it's dynamic
+                    markedDates={getCurrentMonthDays()} 
                     current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`}
                     onDayPress={(day) => {
                         setSelectedDate(day.dateString);

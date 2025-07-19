@@ -112,6 +112,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const userRoutes = require('./routes/user');
 const holidaysRouter = require('./routes/holidays');
+const leavesRouter = require('./routes/leaves')
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -136,6 +137,9 @@ app.use('/api/user', userRoutes);
 
 // Mount holidays routes
 app.use('/api/holidays', holidaysRouter);
+
+// Mount leaves route
+app.use('/api/leaves', leavesRouter);
 
 // Root route
 app.get('/', (req, res) => {
