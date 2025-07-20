@@ -113,6 +113,7 @@ const cors = require('cors');
 const userRoutes = require('./routes/user');
 const holidaysRouter = require('./routes/holidays');
 const leavesRouter = require('./routes/leaves')
+const compoffRoutes = require('./routes/compoff')
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -132,14 +133,17 @@ mongoose.connect(process.env.MONGO_URI, {
   process.exit(1);
 });
 
-// Mount user routes
+// mount user routes
 app.use('/api/user', userRoutes);
 
-// Mount holidays routes
+// mount holidays routes
 app.use('/api/holidays', holidaysRouter);
 
-// Mount leaves route
+// mount leaves route
 app.use('/api/leaves', leavesRouter);
+
+// mount compoff route
+app.use('/api/compoff', compoffRoutes);
 
 // Root route
 app.get('/', (req, res) => {

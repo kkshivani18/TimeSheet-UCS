@@ -311,9 +311,9 @@ export default function Dashboard({ navigation }) {
                 };
             }
         });
-        console.log('leaveData:', leaveData);
-        console.log('paidHolidays:', paidHolidays);
-        console.log('markedDates:', markedDates);
+        // console.log('leaveData:', leaveData);
+        // console.log('paidHolidays:', paidHolidays);
+        // console.log('markedDates:', markedDates);
 
         return markedDates;
     };

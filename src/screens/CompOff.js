@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, FlatList, Modal, ScrollView } from 'react-native';
-import { FIREBASE_AUTH, FIREBASE_APP, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc, getDocs } from 'firebase/firestore';
+// import { FIREBASE_AUTH, FIREBASE_APP, FIRESTORE_DB } from '../firebaseConfig';
+// import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc, getDocs } from 'firebase/firestore';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, addMonths, subMonths, startOfDay, endOfDay } from 'date-fns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CompOff({ navigation }) {
     const [startDate, setStartDate] = useState(new Date());
@@ -15,8 +16,8 @@ export default function CompOff({ navigation }) {
     const [hours, setHours] = useState('');
     const [reason, setReason] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);   
+    // const [isLoading, setIsLoading] = useState(false);
+    // const [error, setError] = useState(null);   
 
     // Half-day functionality
     const [compOffType, setCompOffType] = useState('full'); // 'full' or 'half'
@@ -28,66 +29,75 @@ export default function CompOff({ navigation }) {
 
     const [compOffUnsubscribe, setCompOffUnsubscribe] = useState(null);
 
-    useEffect(() => {
-        fetchCompOffApplications();
+    // useEffect(() => {
+    //     fetchCompOffApplications();
         
-        // Cleanup function
-        return () => {
-            if (compOffUnsubscribe) {
-                compOffUnsubscribe();
-            }
-        };
-    }, []);
+    //     // Cleanup function
+    //     return () => {
+    //         if (compOffUnsubscribe) {
+    //             compOffUnsubscribe();
+    //         }
+    //     };
+    // }, []);
+
+    // const fetchCompOffApplications = async () => {
+    //     try {
+    //         const user = FIREBASE_AUTH.currentUser;
+    //         if (!user) return;
+
+    //         const q = query(
+    //             collection(FIRESTORE_DB, 'compOff'),
+    //             where('userId', '==', user.uid),
+    //             where('status', 'in', ['Pending', 'Approved', 'OnHold'])
+    //         );
+
+    //         const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    //             const applications = querySnapshot.docs.map(doc => ({
+    //                 id: doc.id,
+    //                 ...doc.data(),
+    //                 requestDate: doc.data().createdAt?.toDate() || new Date()
+    //             }));
+    //             setCompOffApplications(applications);
+    //         }, (error) => {
+    //             if (FIREBASE_AUTH.currentUser) {
+    //                 console.error("Error in snapshot listener:", error);
+    //                 // Show alert only if user is authenticated
+    //                 Alert.alert('Error', 'Could not load data');
+    //             }
+    //         });
+
+    //         setCompOffUnsubscribe(() => unsubscribe);
+    //     } catch (error) {
+    //         console.error('Error fetching comp-off applications:', error);
+    //     }
+    // };
 
     const fetchCompOffApplications = async () => {
         try {
-            const user = FIREBASE_AUTH.currentUser;
-            if (!user) return;
+            const userId = await AsyncStorage.getItem('userId');
+            if (!userId) return;
 
-            const q = query(
-                collection(FIRESTORE_DB, 'compOff'),
-                where('userId', '==', user.uid),
-                where('status', 'in', ['Pending', 'Approved', 'OnHold'])
-            );
-
-            const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                const applications = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    requestDate: doc.data().createdAt?.toDate() || new Date()
-                }));
-                setCompOffApplications(applications);
-            }, (error) => {
-                if (FIREBASE_AUTH.currentUser) {
-                    console.error("Error in snapshot listener:", error);
-                    // Show alert only if user is authenticated
-                    Alert.alert('Error', 'Could not load data');
-                }
-            });
-
-            setCompOffUnsubscribe(() => unsubscribe);
+            const response = await fetch(`http://localhost:3000/api/compoff/user/${userId}`);
+            if (!response.ok) throw new Error('Failed to fetch comp-off requests');
+            const data = await response.json();
+            data.sort((a, b) => new Date(b.startDateTime) - new Date(a.startDateTime));
+            setCompOffApplications(data);
         } catch (error) {
-            console.error('Error fetching comp-off applications:', error);
+            Alert.alert('Error', 'Could not load previous comp-off requests');
         }
     };
     
+    useEffect(() => {
+        fetchCompOffApplications();
+    }, []);
 
     const handleLogout = async () => {
         try {
-            // Clean up the Firestore listener first
-            if (compOffUnsubscribe) {
-                compOffUnsubscribe();
-                setCompOffUnsubscribe(null);
-            }
-            
-            // Sign out from Firebase Auth
-            await FIREBASE_AUTH.signOut();
-            
-            // Navigate to login
-            navigation.navigate('Login');
-        } catch (error) {
-            console.error('Error logging out:', error);
-            navigation.navigate('Login');
+            await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role'])
+            navigation.replace('Login');
+        } catch(error) {
+            console.log("Error logging out", error);
+            Alert.alert('Error', 'Failed to log out. Please try again.');
         }
     };
 
@@ -140,12 +150,13 @@ export default function CompOff({ navigation }) {
         setHalfDayPeriod(period);
     };
 
+    // submitting req to mongodb
     const handleSubmit = async () => {
         if (!startDate || !endDate || !reason || !hours) {
             Alert.alert('Error', 'Please fill in all fields');
             return;
         }
-
+    
         // Validate half-day input
         if (compOffType === 'half') {
             const hoursValue = parseFloat(hours);
@@ -157,27 +168,38 @@ export default function CompOff({ navigation }) {
     
         setIsSubmitting(true);
         try {
-            const user = FIREBASE_AUTH.currentUser;
-            if (!user) {
+            const userId = await AsyncStorage.getItem('userId');
+            if (!userId) {
                 Alert.alert('Error', 'User not authenticated');
+                setIsSubmitting(false);
                 return;
             }
-
+    
             const compOffData = {
-                userId: user.uid,
+                userId: userId,
                 startDateTime: startDate.toISOString(),
                 endDateTime: endDate.toISOString(),
                 duration: parseFloat(hours),
                 reason: reason,
                 status: 'Pending',
-                createdAt: serverTimestamp(),
                 compOffType: compOffType,
                 halfDayPeriod: compOffType === 'half' ? halfDayPeriod : null,
             };
     
-            await addDoc(collection(FIRESTORE_DB, 'compOff'), compOffData);
+            const response = await fetch('http://localhost:3000/api/compoff', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(compOffData),
+            });
+    
+            if (!response.ok) {
+                throw new Error('Failed to submit comp-off request');
+            }
+    
             Alert.alert('Success', 'Compensatory off request submitted');
-            
+    
             // Reset form
             setStartDate(new Date());
             setEndDate(new Date());
@@ -185,6 +207,9 @@ export default function CompOff({ navigation }) {
             setReason('');
             setCompOffType('full');
             setHalfDayPeriod('morning');
+    
+            // Refresh the list
+            fetchCompOffApplications();
         } catch (error) {
             console.error('Error submitting comp-off request:', error);
             Alert.alert('Error', 'Failed to submit request. Please try again.');
@@ -194,7 +219,6 @@ export default function CompOff({ navigation }) {
     };
 
     const renderCompOffApplication = ({ item }) => {
-        // comp-off type and half-day period
         const getCompOffTypeDisplay = () => {
             if (item.compOffType === 'half') {
                 const period = item.halfDayPeriod === 'morning' ? 'Morning' : 'Afternoon';
@@ -202,7 +226,7 @@ export default function CompOff({ navigation }) {
             }
             return 'Full day';
         };
-
+    
         return (
             <View style={styles.applicationCard}>
                 <View style={styles.applicationHeader}>
@@ -210,7 +234,9 @@ export default function CompOff({ navigation }) {
                         {item.status}
                     </Text>
                 </View>
-                <Text style={styles.requestDate}>Request Date: {format(item.requestDate, 'dd-MM-yyyy')}</Text>
+                <Text style={styles.requestDate}>
+                    Request Date: {item.createdAt ? format(new Date(item.createdAt), 'dd-MM-yyyy') : format(new Date(item.startDateTime), 'dd-MM-yyyy')}
+                </Text>
                 <Text style={styles.dateRange}>
                     Date Range: {format(new Date(item.startDateTime), 'dd-MM-yyyy')} to {format(new Date(item.endDateTime), 'dd-MM-yyyy')}
                 </Text>
@@ -357,13 +383,13 @@ export default function CompOff({ navigation }) {
                     <Text style={styles.previousCompOffTitle}>Previous CompOff Applications</Text>
                 </View>
                 <View>
-                        <FlatList
-                            data={compOffApplications}
-                            renderItem={renderCompOffApplication}
-                            keyExtractor={item => item.id}
-                            scrollEnabled={false}
-                        />
-                    </View>
+                    <FlatList
+                        data={compOffApplications}
+                        renderItem={renderCompOffApplication}
+                        keyExtractor={item => item._id}
+                        scrollEnabled={false}
+                    />
+                </View>
             </View>
 
             {showStartPicker && (
