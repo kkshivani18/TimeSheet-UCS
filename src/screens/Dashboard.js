@@ -52,6 +52,7 @@ export default function Dashboard({ navigation }) {
                 const userId = await AsyncStorage.getItem('userId');
                 if (!userId) {
                   setUsername('Guest');
+                  setUser(null);
                   return;
                 }
                 const response = await axios.get(`http://localhost:3000/api/user/${userId}`, {

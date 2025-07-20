@@ -6,6 +6,6 @@ const PaidHolidaySchema = new mongoose.Schema({
     date: { type: String, required: true },
     description: { type: String, required: true },
     year: { type: Number, required: true }
-}, {timestamps: true});
+}, {timestamps: true, collection: 'paidholidays'});
 
-module.exports = mongoose.model('PaidHoliday', PaidHolidaySchema);
+module.exports = mongoose.model('paidHolidays', PaidHolidaySchema);

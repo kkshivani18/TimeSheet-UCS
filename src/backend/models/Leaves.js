@@ -10,6 +10,6 @@ const leaveSchema = new mongoose.Schema({
     userEmail: { type: String, required: true },
     userId: { type: String, required: true },
     username: { type: String, required: true }
-}, {timestamps: true});
+}, {timestamps: true, collection: 'leaves'});
 
 module.exports = mongoose.model('Leaves', leaveSchema);
