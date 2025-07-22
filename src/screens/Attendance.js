@@ -111,6 +111,13 @@ export default function Attendance({ navigation }) {
         fetchAttendance();
     }, []);
 
+    // fetch monthly attendance
+    useEffect(() => {
+        if (viewType === 'monthly') {
+            fetchMonthlyAttendance();
+        }
+    }, [selectedMonth, viewType]);
+
     // fetch weekly attendance 
     useEffect(() => {
         if (viewType === 'weekly') {
@@ -123,54 +130,6 @@ export default function Attendance({ navigation }) {
         fetchWeeklyAttendance();
     }, []);
 
-    // const fetchAttendance = async () => {
-    //     if (!user) return;
-
-    //     try {
-    //         const todayDate = new Date().toLocaleDateString();
-
-    //         // document ID includes user ID and date. A unique document for each user for each day created
-    //         const docId = `${user.uid}_${todayDate.replace(/\//g, '-')}`;
-
-    //         // Reference to today's attendance document
-    //         const docRef = doc(FIRESTORE_DB, 'attendance', docId);
-    //         const docSnap = await getDoc(docRef);
-
-    //         if (docSnap.exists()) {
-    //             // Document exists for today, use its data
-    //             const data = docSnap.data();
-    //             setCheckInTime(data.checkInTime);
-    //             setCheckOutTime(data.checkOutTime);
-    //             // setWorkedHours(data.workedHours)
-                
-    //             // Format the numeric workedHours from Firestore 
-    //             setWorkedHours(formatHoursToHMS(data.workedHours));
-    //             setTotalWorkedMinutes(data.totalWorkedMinutes || 0);
-
-    //             // Disable/Enable Buttons
-    //             if (data.checkInTime) {
-    //                 setIsCheckInDisabled(true);
-    //                 // Always enable check-out if checked in
-    //                 setIsCheckOutDisabled(false);
-    //             } else {
-    //                 setIsCheckInDisabled(false);
-    //                 setIsCheckOutDisabled(true);
-    //             }
-    //         } else {
-    //             // No document exists for today, reset UI
-    //             console.log("No attendance record found for today.");
-    //             setCheckInTime(null);
-    //             setCheckOutTime(null);
-    //             setWorkedHours('');
-    //             setTotalWorkedMinutes(0);
-    //             setIsCheckInDisabled(false);
-    //             setIsCheckOutDisabled(true);
-    //         }
-    //     } catch (error) {
-    //         console.error("Error fetching attendance:", error);
-    //     }
-    // };
-
     const fetchAttendance = async () => {
         try {
             let userId = null;
@@ -179,30 +138,38 @@ export default function Attendance({ navigation }) {
             } else {
                 userId = await AsyncStorage.getItem('userId');
             }
-            if (!userId) return;
-
+            if (!userId) {
+                console.log('No userId found');
+                return;
+            }
+    
             const today = new Date();
-            const formattedDate = today.toLocaleDateString(); 
-
-            // Fetch attendance for today
-            const response = await axios.get(`http://localhost:3000/api/attendance/user/${userId}/date/${formattedDate}`);
+            const formattedDate = format(today, 'yyyy-MM-dd');
+            console.log(`Fetching attendance for userId: ${userId}, date: ${formattedDate}`);
+            
+            const response = await axios.get(`http://localhost:3000/api/attendance/user/${userId}/date/${formattedDate}`, {
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
+            console.log('fetchAttendance response:', response.data);
             const data = response.data;
-
+    
             if (data) {
+                console.log('Setting state:', {
+                    checkInTime: data.checkInTime,
+                    checkOutTime: data.checkOutTime,
+                    workedHours: data.workedHours,
+                    totalWorkedMinutes: data.totalWorkedMinutes,
+                    isCheckInDisabled: !!data.checkInTime,
+                    isCheckOutDisabled: !data.checkInTime || !!data.checkOutTime
+                });
                 setCheckInTime(data.checkInTime || null);
                 setCheckOutTime(data.checkOutTime || null);
                 setWorkedHours(data.workedHours || null);
                 setTotalWorkedMinutes(data.totalWorkedMinutes || 0);
-
-                // Enable/disable buttons based on check-in/out status
-                if (data.checkInTime) {
-                    setIsCheckInDisabled(true);
-                    setIsCheckOutDisabled(!data.checkOutTime ? false : true);
-                } else {
-                    setIsCheckInDisabled(false);
-                    setIsCheckOutDisabled(true);
-                }
+                setIsCheckInDisabled(!!data.checkInTime);
+                setIsCheckOutDisabled(!data.checkInTime);
             } else {
+                console.log('No attendance data found');
                 setCheckInTime(null);
                 setCheckOutTime(null);
                 setWorkedHours('');
@@ -211,7 +178,7 @@ export default function Attendance({ navigation }) {
                 setIsCheckOutDisabled(true);
             }
         } catch (error) {
-            console.error("Error fetching attendance:", error);
+            console.error('Error fetching attendance:', error.response?.data || error.message);
             setCheckInTime(null);
             setCheckOutTime(null);
             setWorkedHours('');
@@ -221,55 +188,18 @@ export default function Attendance({ navigation }) {
         }
     };
 
-    // Check-In
-    // const handleCheckIn = async () => {
-    //     if (!user) return;
-
-    //     try {
-    //         setIsLoading(true);
-    //         const currentTime = new Date();
-    //         const formattedDate = currentTime.toLocaleDateString();
-    //         const docId = `${user.uid}_${formattedDate.replace(/\//g, '-')}`;
-
-    //         // Check if already checked in today
-    //         const existingDoc = await getDoc(doc(FIRESTORE_DB, 'attendance', docId));
-    //         if (existingDoc.exists()) {
-    //             Alert.alert('Already Checked In', 'You have already checked in today.');
-    //             return;
-    //         }
-
-    //         // Create new attendance record
-    //         await setDoc(doc(FIRESTORE_DB, 'attendance', docId), {
-    //             userId: user.uid,
-    //             docId: docId,
-    //             checkInTime: currentTime.toISOString(),
-    //             checkOutTime: null,
-    //             workedHours: null,
-    //             totalWorkedMinutes: 0,
-    //             date: formattedDate
-    //         });
-
-    //         setCheckInTime(currentTime);
-    //         setIsCheckInDisabled(true);
-    //         setIsCheckOutDisabled(false);
-    //         Alert.alert('Success', 'Check-in successful!');
-    //         fetchAttendance();
-    //     } catch (error) {
-    //         console.error('Error during check-in:', error);
-    //         Alert.alert('Error', 'Failed to check in. Please try again.');
-    //     } finally {
-    //         setIsLoading(false);
-    //     }
-    // };
-
+    // check-in
     const handleCheckIn = async () => {
         try {
             setIsLoading(true);
             const userId = user?.userId || await AsyncStorage.getItem('userId');
-            if (!userId) return;
+            if (!userId) {
+                Alert.alert('Error', 'User not authenticated.');
+                return;
+            }
     
             const now = new Date();
-            const formattedDate = now.toLocaleDateString(); 
+            const formattedDate = format(now, 'yyyy-MM-dd');
             const checkInTime = now.toISOString();
     
             const attendanceData = {
@@ -281,105 +211,42 @@ export default function Attendance({ navigation }) {
                 totalWorkedMinutes: 0,
             };
             console.log('Sending check-in:', attendanceData);
-            const response = await axios.post('http://localhost:3000/api/attendance', attendanceData);
+            const response = await axios.post('http://localhost:3000/api/attendance', attendanceData, {
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
             console.log('Check-in response:', response.data);
-
-            await axios.post('http://localhost:3000/api/attendance', attendanceData);
-
-            console.log('Sending check-in:', attendanceData);
-            const response2 = await axios.post('http://localhost:3000/api/attendance', attendanceData);
-            console.log('Check-in response:', response2.data);
     
             setCheckInTime(checkInTime);
             setIsCheckInDisabled(true);
             setIsCheckOutDisabled(false);
             Alert.alert('Success', 'Check-in successful!');
-            fetchAttendance(); 
+            
+            // Wait briefly to ensure backend sync
+            setTimeout(() => {
+                fetchAttendance();
+            }, 500);
         } catch (error) {
-            console.error('Error during check-in:', error);
+            console.error('Error during check-in:', error.response?.data || error.message);
             Alert.alert('Error', 'Failed to check in. Please try again.');
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Check-Out
-    // const handleCheckOut = async () => {
-    //     if (!user || !checkInTime) return;
-
-    //     try {
-    //         setIsLoading(true);
-    //         const currentTime = new Date();
-    //         const formattedDate = currentTime.toLocaleDateString();
-    //         const formattedCurrentDate = format(currentTime, 'yyyy-MM-dd');
-    //         const docId = `${user.uid}_${formattedDate.replace(/\//g, '-')}`;
-
-    //         // Get the existing attendance record
-    //         const attendanceDoc = await getDoc(doc(FIRESTORE_DB, 'attendance', docId));
-    //         if (!attendanceDoc.exists()) {
-    //             Alert.alert('Error', 'No check-in record found for today.');
-    //             return;
-    //         }
-
-    //         const attendanceData = attendanceDoc.data();
-    //         const checkInTime = new Date(attendanceData.checkInTime);
-    //         const timeDiff = currentTime - checkInTime;
-
-    //         const workedMinutes = Math.floor(timeDiff / (1000 * 60));
-
-    //         const hours = Math.floor(workedMinutes / 60);
-    //         const minutes = workedMinutes % 60;
-    //         const workedHoursStr = `${hours}h ${minutes}m`; 
-    //         const workedHoursNumeric = parseFloat((workedMinutes / 60).toFixed(2));
-    //         const isLeaveDay = leaveDays[formattedCurrentDate] ? true : false;
-    //         const isWeekendDay = isWeekend(currentTime);
-    //         const isHoliday = paidHolidays[formattedCurrentDate] ? true : false;
-
-    //         // overtime hours
-    //         // let overtimeHours = 0;
-    //         // if (workedMinutes > 480) {
-    //         //     overtimeHours = (workedMinutes - 480) / 60;
-    //         // }
-
-    //         // Update the attendance record
-    //         await updateDoc(doc(FIRESTORE_DB, 'attendance', docId), {
-    //             checkOutTime: currentTime.toISOString(),
-    //             workedHours: workedHoursNumeric, 
-    //             totalWorkedMinutes: workedMinutes,
-    //             isWeekend: isWeekendDay,
-    //             isHoliday: isHoliday,
-    //             holidayName: isHoliday ? paidHolidays[formattedCurrentDate] : null,
-    //         });
-
-    //         setCheckOutTime(currentTime);
-    //         setWorkedHours(workedHoursNumeric); 
-    //         setTotalWorkedMinutes(workedMinutes);
-    //         setIsCheckOutDisabled(true);
-    //         Alert.alert('Success', 'Check-out successful!');
-    //         fetchAttendance();
-    //     } catch (error) {
-    //         console.error('Error during check-out:', error);
-    //         Alert.alert('Error', 'Failed to check out. Please try again.');
-    //     } finally {
-    //         setIsLoading(false);
-    //     }
-    // };
-
+    // check-out
     const handleCheckOut = async () => {
         try {
             setIsLoading(true);
             const userId = user?.userId || await AsyncStorage.getItem('userId');
             if (!userId || !checkInTime) return;
-    
+
             const now = new Date();
-            const formattedDate = now.toLocaleDateString();
+            const formattedDate = format(now, 'yyyy-MM-dd');
             const checkOutTime = now.toISOString();
-    
-            // Calculate worked minutes
             const checkInDate = new Date(checkInTime);
             const workedMinutes = Math.floor((now - checkInDate) / (1000 * 60));
             const workedHoursNumeric = parseFloat((workedMinutes / 60).toFixed(2));
-    
+
             const attendanceData = {
                 userId,
                 date: formattedDate,
@@ -388,17 +255,23 @@ export default function Attendance({ navigation }) {
                 workedHours: workedHoursNumeric,
                 totalWorkedMinutes: workedMinutes,
             };
-    
-            await axios.post('http://localhost:3000/api/attendance', attendanceData);
-    
+
+            console.log('Sending check-out:', attendanceData);
+            const response = await axios.post('http://localhost:3000/api/attendance', attendanceData, {
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
+            console.log('Check-out response:', response.data);
+
             setCheckOutTime(checkOutTime);
             setWorkedHours(workedHoursNumeric);
             setTotalWorkedMinutes(workedMinutes);
-            setIsCheckOutDisabled(true);
             Alert.alert('Success', 'Check-out successful!');
-            fetchAttendance(); 
+            
+            setTimeout(() => {
+                fetchAttendance();
+            }, 500);
         } catch (error) {
-            console.error('Error during check-out:', error);
+            console.error('Error during check-out:', error.response?.data || error.message);
             Alert.alert('Error', 'Failed to check out. Please try again.');
         } finally {
             setIsLoading(false);
@@ -412,7 +285,6 @@ export default function Attendance({ navigation }) {
         try {
             const dateObj = regularizationDate;
             const formattedDate = dateObj.toLocaleDateString();
-            // const isoDate = format(dateObj, 'dd-MM-yyyy'); 
         
             const docId = `${user.uid}_${formattedDate.replace(/\//g, '-')}`;
             const docRef = doc(FIRESTORE_DB, 'attendance', docId);
@@ -562,19 +434,32 @@ export default function Attendance({ navigation }) {
 
     // Function to fetch weekly attendance records
     const fetchWeeklyAttendance = async () => {
-        if (!user) return;
-
         setIsLoading(true);
         try {
-            // Ensure selectedWeek is a valid Date object
-            const weekDate = new Date(selectedWeek);
+            const userId = user?.userId || await AsyncStorage.getItem('userId');
+            if (!userId) return;
 
-            // Create date range for the selected week (Sunday to Saturday)
-            const start = startOfWeek(weekDate, { weekStartsOn: 0 });
-            const end = endOfWeek(weekDate, { weekStartsOn: 0 });
+            const start = startOfWeek(selectedWeek, { weekStartsOn: 0 });
+            const end = endOfWeek(selectedWeek, { weekStartsOn: 0 });
+            
+            const startDate = format(start, 'yyyy-MM-dd');
+            const endDate = format(end, 'yyyy-MM-dd');
 
+            console.log(`Fetching weekly attendance for ${userId} from ${startDate} to ${endDate}`);
+            const response = await axios.get(`http://localhost:3000/api/attendance/user/${userId}/range`, {
+                params: { startDate, endDate },
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
+
+            const attendanceRecords = response.data || [];
+            
             // Get all days in the week
-            const daysInWeek = eachDayOfInterval({ start, end });
+            const daysInWeek = [];
+            const currentDay = new Date(start);
+            while (currentDay <= end) {
+                daysInWeek.push(new Date(currentDay));
+                currentDay.setDate(currentDay.getDate() + 1);
+            }
 
             // Initialize attendance data with empty values for all days
             const initialAttendance = daysInWeek.map(day => {
@@ -592,41 +477,23 @@ export default function Attendance({ navigation }) {
                 };
             });
 
-            // Process each day in the week
-            const attendanceData = {};
-            for (const day of daysInWeek) {
-                try {
-                    // Format the date to match what's stored in Firestore
-                    const dateFormatted = day.toLocaleDateString();
-
-                    // Fetch attendance for this specific day
-                    const attendanceRecord = await fetchAttendanceForDate(dateFormatted);
-
-                    if (attendanceRecord) {
-                        // If record exists, add it to our data
-                        const dateKey = format(day, 'yyyy-MM-dd');
-                        attendanceData[dateKey] = {
-                            checkInTime: attendanceRecord.checkInTime,
-                            checkOutTime: attendanceRecord.checkOutTime,
-                            workedHours: attendanceRecord.workedHours || '-',
-                            totalWorkedMinutes: attendanceRecord.totalWorkedMinutes || 0
-                        };
-                    }
-                } catch (error) {
-                    console.error(`Error fetching attendance for ${format(day, 'yyyy-MM-dd')}:`, error);
-                }
-            }
+            // Map attendance records to dates
+            const attendanceMap = {};
+            attendanceRecords.forEach(record => {
+                attendanceMap[record.date] = record;
+            });
 
             // Update the initialAttendance array with actual data
             const updatedAttendance = initialAttendance.map(day => {
                 const dateKey = day.date;
-                if (attendanceData[dateKey]) {
+                if (attendanceMap[dateKey]) {
+                    const record = attendanceMap[dateKey];
                     return {
                         ...day,
-                        checkInTime: attendanceData[dateKey].checkInTime,
-                        checkOutTime: attendanceData[dateKey].checkOutTime,
-                        workedHours: attendanceData[dateKey].workedHours,
-                        totalWorkedMinutes: attendanceData[dateKey].totalWorkedMinutes
+                        checkInTime: record.checkInTime,
+                        checkOutTime: record.checkOutTime,
+                        workedHours: record.workedHours || '-',
+                        totalWorkedMinutes: record.totalWorkedMinutes || 0
                     };
                 }
                 return day;
@@ -635,7 +502,7 @@ export default function Attendance({ navigation }) {
             setWeeklyAttendance(updatedAttendance);
         } catch (error) {
             console.error('Error fetching weekly attendance:', error);
-            Alert.alert('Error', 'Failed to load attendance records');
+            Alert.alert('Error', 'Failed to load weekly attendance records');
         } finally {
             setIsLoading(false);
         }
@@ -658,10 +525,11 @@ export default function Attendance({ navigation }) {
 
     // Function to fetch monthly attendance records
     const fetchMonthlyAttendance = async () => {
-        if (!user) return;
-
         setIsLoading(true);
         try {
+            const userId = user?.userId || await AsyncStorage.getItem('userId');
+            if (!userId) return;
+
             // Get the year and month from selectedMonth
             const year = selectedMonth.getFullYear();
             const month = selectedMonth.getMonth();
@@ -670,13 +538,22 @@ export default function Attendance({ navigation }) {
             const firstDayOfMonth = new Date(year, month, 1);
             const lastDayOfMonth = new Date(year, month + 1, 0);
 
-            console.log(`Fetching monthly attendance for ${year}-${month + 1}`);
-            console.log('Month range:', firstDayOfMonth, 'to', lastDayOfMonth);
+            const startDate = format(firstDayOfMonth, 'yyyy-MM-dd');
+            const endDate = format(lastDayOfMonth, 'yyyy-MM-dd');
+
+            console.log(`Fetching monthly attendance for ${userId} from ${startDate} to ${endDate}`);
+
+            // Fetch attendance data from MongoDB
+            const response = await axios.get(`http://localhost:3000/api/attendance/user/${userId}/range`, {
+                params: { startDate, endDate },
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
+
+            const attendanceRecords = response.data || [];
 
             // Get all days in the month
             const daysInMonth = [];
             const currentDay = new Date(firstDayOfMonth);
-
             while (currentDay <= lastDayOfMonth) {
                 daysInMonth.push(new Date(currentDay));
                 currentDay.setDate(currentDay.getDate() + 1);
@@ -701,50 +578,29 @@ export default function Attendance({ navigation }) {
             // Fetch leave data for the month
             await fetchMonthLeaveData(firstDayOfMonth, lastDayOfMonth);
 
-            // Fetch attendance records for each day in the month
-            const attendanceData = {};
-
-            // Process each day in the month
-            for (const day of daysInMonth) {
-                try {
-                    // Format the date to match what's stored in Firestore
-                    const dateFormatted = day.toLocaleDateString();
-
-                    // Fetch attendance for this specific day
-                    const attendanceRecord = await fetchAttendanceForDate(dateFormatted);
-
-                    if (attendanceRecord) {
-                        // If record exists, add it to our data
-                        const dateKey = format(day, 'yyyy-MM-dd');
-                        attendanceData[dateKey] = {
-                            checkInTime: attendanceRecord.checkInTime,
-                            checkOutTime: attendanceRecord.checkOutTime,
-                            workedHours: attendanceRecord.workedHours || 'N/A',
-                            totalWorkedMinutes: attendanceRecord.totalWorkedMinutes || 0
-                        };
-                    }
-                } catch (error) {
-                    console.error(`Error fetching attendance for ${format(day, 'yyyy-MM-dd')}:`, error);
-                }
-            }
+            // Map attendance records to dates
+            const attendanceMap = {};
+            attendanceRecords.forEach(record => {
+                attendanceMap[record.date] = record;
+            });
 
             // Update the initialAttendance array with actual data
             const updatedAttendance = initialAttendance.map(day => {
                 const dateKey = day.date;
-                if (attendanceData[dateKey]) {
+                if (attendanceMap[dateKey]) {
+                    const record = attendanceMap[dateKey];
                     return {
                         ...day,
-                        checkInTime: attendanceData[dateKey].checkInTime,
-                        checkOutTime: attendanceData[dateKey].checkOutTime,
-                        workedHours: attendanceData[dateKey].workedHours,
-                        totalWorkedMinutes: attendanceData[dateKey].totalWorkedMinutes
+                        checkInTime: record.checkInTime,
+                        checkOutTime: record.checkOutTime,
+                        workedHours: record.workedHours || 'N/A',
+                        totalWorkedMinutes: record.totalWorkedMinutes || 0
                     };
                 }
                 return day;
             });
 
             setMonthlyAttendance(updatedAttendance);
-            // Reset to first page when month changes
             setCurrentPage(1);
         } catch (error) {
             console.error('Error fetching monthly attendance:', error);
@@ -1872,3 +1728,7 @@ const styles = StyleSheet.create({
         fontSize: 15,
     },
 });
+
+
+
+
