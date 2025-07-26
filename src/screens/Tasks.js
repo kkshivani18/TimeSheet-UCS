@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, query, where, getDoc, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, serverTimestamp } from 'firebase/firestore';
+// import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
+// import { collection, query, where, getDoc, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, serverTimestamp } from 'firebase/firestore';
 import { Icon } from 'react-native-elements';
 import { format } from 'date-fns';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Tasks({ route, navigation }) {
     const [tasks, setTasks] = useState([]);
@@ -35,24 +37,55 @@ export default function Tasks({ route, navigation }) {
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
+    // user
+    const [user, setUser] = useState(null);
+    const [username, setUsername] = useState('');
+
+    useEffect(() => {
+            const fetchUserData = async () => {
+                try {
+                    const token = await AsyncStorage.getItem('token');
+                    const userId = await AsyncStorage.getItem('userId');
+                    if (!userId) {
+                      setUsername('Guest');
+                      setUser(null);
+                      return;
+                    }
+                    const response = await axios.get(`http://localhost:3000/api/user/${userId}`, {
+                      headers: { Authorization: `Bearer ${token}` }
+                    });
+                    setUsername(response.data.username || 'User');
+                    setUser(response.data)
+                  } catch (error) {
+                    setUsername('User');
+                    console.error('Error fetching user data:', error);
+                }
+            };
+    
+            fetchUserData();
+        }, []);
+
     // role
     const [userRole, setUserRole] = useState(null);
 
     useEffect(() => {
         const fetchUserRole = async () => {
-            const user = FIREBASE_AUTH.currentUser;
-            if (user) {
-                const userDoc = await getDoc(doc(FIRESTORE_DB, "users", user.uid));
-                if (userDoc.exists()) {
-                    setUserRole(userDoc.data().role);
+            try {
+                const userId = await AsyncStorage.getItem('userId');
+                if (userId) {
+                    const response = await axios.get(`http://localhost:3000/api/user/${userId}`, {
+                        headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+                    });
+                    setUserRole(response.data.role);
                 }
+            } catch (error) {
+                console.error('Error fetching user role:', error);
             }
         };
         fetchUserRole();
     }, []);
 
     const showMenu = !(isAdminView || userRole === "admin");
-    const user = FIREBASE_AUTH.currentUser;
 
     useEffect(() => {
         if (route.params?.date) {
@@ -64,7 +97,11 @@ export default function Tasks({ route, navigation }) {
             setViewingUserId(route.params.userId);
             setViewingUsername(route.params.username);
         } else {
-            setViewingUserId(FIREBASE_AUTH.currentUser?.uid); // Ensure users see their tasks properly
+            const getCurrentUserId = async () => {
+                const userId = await AsyncStorage.getItem('userId');
+                setViewingUserId(userId);
+            };
+            getCurrentUserId();
         }
     }, [route.params]);
 
@@ -83,18 +120,20 @@ export default function Tasks({ route, navigation }) {
             fetchMonthlyTasks();
         }
     }, [selectedMonth, selectedYear, monthlyTasksLoaded]);
+    
 
+    // fetch monthly tasks
     const fetchMonthlyTasks = async () => {
         try {
             setLoading(true);
-            const user = FIREBASE_AUTH.currentUser;
-            if (!user) {
+            const userId = await AsyncStorage.getItem('userId');
+            if (!userId) {
                 navigation.replace('Login');
                 return;
             }
 
             // Determine which user's tasks to fetch
-            const targetUserId = isAdminView ? viewingUserId : user.uid;
+            const targetUserId = isAdminView ? viewingUserId : userId;
 
             // Get selected month's start and end dates
             const startOfMonth = new Date(selectedYear, selectedMonth, 1);
@@ -110,21 +149,19 @@ export default function Tasks({ route, navigation }) {
                 isAdminView: isAdminView
             });
 
-            const tasksQuery = query(
-                collection(FIRESTORE_DB, 'tasks'),
-                where('userId', '==', targetUserId),
-                where('date', '>=', startOfMonth.toISOString()),
-                where('date', '<=', endOfMonth.toISOString())
+            const response = await axios.get(
+                `http://localhost:3000/api/tasks/user/${targetUserId}/monthly`,
+                {
+                    params: {
+                        startDate: startOfMonth.toISOString(),
+                        endDate: endOfMonth.toISOString()
+                    },
+                    headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+                }
             );
 
-            const querySnapshot = await getDocs(tasksQuery);
-            const tasksList = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-
-            console.log('Monthly tasks found:', tasksList.length);
-            setMonthlyTasks(tasksList);
+            console.log('Monthly tasks found:', response.data.length);
+            setMonthlyTasks(response.data);
             setMonthlyTasksLoaded(true);
         } catch (error) {
             console.error('Error fetching monthly tasks:', error);
@@ -134,49 +171,41 @@ export default function Tasks({ route, navigation }) {
         }
     };
 
+    // fetch tasks
     const fetchTasks = async () => {
-        try {
-            setLoading(true);
-            const user = FIREBASE_AUTH.currentUser;
-            if (!user) {
-                navigation.replace('Login');
-                return;
-            }
-
-            // Determine which user's tasks to fetch
-            const targetUserId = isAdminView ? viewingUserId : user.uid;
-
-            const startDate = new Date(selectedDate);
-            startDate.setHours(0, 0, 0, 0);
-            const endDate = new Date(selectedDate);
-            endDate.setHours(23, 59, 59, 999);
-
-            console.log('Fetching tasks for:', {
-                userId: targetUserId,
-                date: selectedDate,
-                isAdminView: isAdminView
-            }, targetUserId, viewingUserId);
-
-            const tasksQuery = query(
-                collection(FIRESTORE_DB, 'tasks'),
-                where('userId', '==', targetUserId),
-                where('date', '>=', startDate.toISOString()),
-                where('date', '<=', endDate.toISOString())
-            );
-
-            const querySnapshot = await getDocs(tasksQuery);
-            const tasksList = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            console.log('Tasks found:', tasksList.length);
-            setTasks(tasksList);
-        } catch (error) {
-            console.error('Error fetching tasks:', error);
-            Alert.alert('Error', 'Failed to fetch tasks');
-        } finally {
-            setLoading(false);
+    try {
+        setLoading(true);
+        const userId = await AsyncStorage.getItem('userId');
+        if (!userId) {
+            navigation.replace('Login');
+            return;
         }
+
+        // Determine which user's tasks to fetch
+        const targetUserId = isAdminView ? viewingUserId : userId;
+
+        console.log('Fetching tasks for:', {
+            userId: targetUserId,
+            date: selectedDate,
+            isAdminView: isAdminView
+        });
+
+        const response = await axios.get(
+            `http://localhost:3000/api/tasks/user/${targetUserId}/date/${selectedDate}`,
+            {
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            }
+        );
+
+        console.log('Tasks found:', response.data.length);
+        setTasks(response.data);
+    } catch (error) {
+        console.error('Error fetching tasks:', error);
+        Alert.alert('Error', 'Failed to fetch tasks');
+    } finally {
+        setLoading(false);
+        setMonthlyTasksLoaded(false);
+    }
     };
 
     const handleAddTask = () => {
@@ -221,6 +250,7 @@ export default function Tasks({ route, navigation }) {
         setModalAddVisible(true);
     };
 
+    // save task
     const handleSaveTask = async () => {
         try {
             if (!editHeading.trim() || !editDescription.trim()) {
@@ -228,19 +258,22 @@ export default function Tasks({ route, navigation }) {
                 return;
             }
 
-            const user = FIREBASE_AUTH.currentUser;
-            if (!user) {
+            const userId = await AsyncStorage.getItem('userId');
+            if (!userId) {
                 Alert.alert('Error', 'No user logged in');
                 return;
             }
 
-            // Fetch the username from Firestore or use a default value
+            // Fetch the username from backend
             let username = 'User';
+            let userEmail = 'user@example.com';
+            
             try {
-                const userDoc = await getDoc(doc(FIRESTORE_DB, 'users', user.uid));
-                if (userDoc.exists()) {
-                    username = userDoc.data().username;
-                }
+                const userResponse = await axios.get(`http://localhost:3000/api/user/${userId}`, {
+                    headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+                });
+                username = userResponse.data.username;
+                userEmail = userResponse.data.email;
             } catch (error) {
                 console.error('Error fetching username:', error);
             }
@@ -249,8 +282,8 @@ export default function Tasks({ route, navigation }) {
             const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
 
             const newTask = {
-                userId: isAdminView ? viewingUserId : user.uid,
-                email: user.email,
+                userId: isAdminView ? viewingUserId : userId,
+                email: userEmail,
                 username: username,
                 heading: editHeading.trim(),
                 description: editDescription.trim(),
@@ -258,14 +291,21 @@ export default function Tasks({ route, navigation }) {
                 date: selectedDate,
                 completed: false,
                 createdAt: new Date().toISOString(),
-                createdBy: isAdminView ? "admin" : user.uid,
+                createdBy: isAdminView ? "admin" : userId,
             };
 
-            const docRef = await addDoc(collection(FIRESTORE_DB, 'tasks'), newTask);
-            setTasks([...tasks, { id: docRef.id, ...newTask }]);
+            const response = await axios.post('http://localhost:3000/api/tasks', newTask, {
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
 
+            setTasks([...tasks, response.data]);
             Alert.alert('Success', 'Task added successfully');
             setModalAddVisible(false);
+            
+            // Reset form fields
+            setEditHeading('');
+            setEditDescription('');
+            setDeadlineDate(new Date());
         } catch (error) {
             console.error('Error saving task:', error);
             Alert.alert('Error', 'Failed to save task');
@@ -334,7 +374,6 @@ export default function Tasks({ route, navigation }) {
 
     const handleUpdateTask = async () => {
         try {
-            // Form validation
             if (!editHeading.trim()) {
                 Alert.alert('Error', 'Please enter a task heading');
                 return;
@@ -344,10 +383,8 @@ export default function Tasks({ route, navigation }) {
                 return;
             }
 
-            // Format the deadline date
             const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
 
-            const taskRef = doc(FIRESTORE_DB, 'tasks', editingTask.id);
             const updateData = {
                 heading: editHeading.trim(),
                 description: editDescription.trim(),
@@ -355,11 +392,17 @@ export default function Tasks({ route, navigation }) {
                 updatedAt: new Date().toISOString()
             };
 
-            await updateDoc(taskRef, updateData);
+            const response = await axios.put(
+                `http://localhost:3000/api/tasks/${editingTask._id}`,
+                updateData,
+                {
+                    headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+                }
+            );
 
             // Update local state
             setTasks(tasks.map(task =>
-                task.id === editingTask.id
+                task._id === editingTask._id
                     ? { ...task, ...updateData }
                     : task
             ));
@@ -387,8 +430,10 @@ export default function Tasks({ route, navigation }) {
                         text: 'Delete',
                         style: 'destructive',
                         onPress: async () => {
-                            await deleteDoc(doc(FIRESTORE_DB, 'tasks', taskId));
-                            setTasks(tasks.filter(task => task.id !== taskId));
+                            await axios.delete(`http://localhost:3000/api/tasks/${taskId}`, {
+                                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+                            });
+                            setTasks(tasks.filter(task => task._id !== taskId));
                             Alert.alert('Success', 'Task deleted successfully');
                         }
                     }
@@ -402,21 +447,38 @@ export default function Tasks({ route, navigation }) {
 
     const toggleTaskCompletion = async (taskId, currentStatus) => {
         try {
-            const taskRef = doc(FIRESTORE_DB, 'tasks', taskId);
-            await updateDoc(taskRef, {
-                completed: !currentStatus,
-                updatedAt: new Date().toISOString()
-            });
+            console.log('Toggling task:', taskId); // Debug log
+            
+            const response = await axios.patch(
+                `http://localhost:3000/api/tasks/${taskId}/toggle`,
+                {},
+                {
+                    headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+                }
+            );
 
-            // Update local state
+            // Update local state only if request succeeds
             setTasks(tasks.map(task =>
-                task.id === taskId
+                task._id === taskId
                     ? { ...task, completed: !currentStatus }
                     : task
             ));
+
+            // Also update monthly tasks if in monthly view
+            if (monthlyTasks.length > 0) {
+                setMonthlyTasks(monthlyTasks.map(task =>
+                    task._id === taskId
+                        ? { ...task, completed: !currentStatus }
+                        : task
+                ));
+            }
         } catch (error) {
             console.error('Error updating task completion:', error);
-            Alert.alert('Error', 'Failed to update task status');
+            if (error.response?.status === 404) {
+                Alert.alert('Error', 'Task not found');
+            } else {
+                Alert.alert('Error', 'Failed to update task status');
+            }
         }
     };
 
@@ -429,10 +491,10 @@ export default function Tasks({ route, navigation }) {
     }
 
     const renderTask = ({ item }) => {
-        const user = FIREBASE_AUTH.currentUser;
+        const userId = AsyncStorage.getItem('userId');
         const isAdminCreated = item.createdBy === "admin";
         const isCurrentUserAdmin = isAdminView;
-        const isAdminViewUserTasks = isAdminView && viewingUserId !== user?.uid;
+        const isAdminViewUserTasks = isAdminView && viewingUserId !== userId;
         const isMonthlyView = !selectedDate;
 
         return (
@@ -455,7 +517,7 @@ export default function Tasks({ route, navigation }) {
                 ) : (
                     <TouchableOpacity
                         style={styles.checkbox}
-                        onPress={() => toggleTaskCompletion(item.id, item.completed)}
+                        onPress={() => toggleTaskCompletion(item._id, item.completed)}
                     >
                         <Icon
                             name={item.completed ? "check-box" : "check-box-outline-blank"}
@@ -485,7 +547,7 @@ export default function Tasks({ route, navigation }) {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        onPress={() => (isCurrentUserAdmin || !isAdminCreated) && handleDeleteTask(item.id)}
+                        onPress={() => (isCurrentUserAdmin || !isAdminCreated) && handleDeleteTask(item._id)}
                         disabled={(!isCurrentUserAdmin && isAdminCreated) || isMonthlyView}
                     >
                         <Icon
@@ -613,7 +675,7 @@ export default function Tasks({ route, navigation }) {
                     <FlatList
                         data={sortTasksByDate(monthlyTasks)}
                         renderItem={renderTask}
-                        keyExtractor={(item) => item.id}
+                        keyExtractor={(item) => item._id}
                         ListEmptyComponent={() => (
                             <View style={styles.noTasksContainer}>
                                 <Text style={styles.noTasksText}>No tasks for {getSelectedMonthName()} {selectedYear}</Text>
@@ -625,15 +687,14 @@ export default function Tasks({ route, navigation }) {
         );
     };
 
-    const handleLogout = () => {
-        FIREBASE_AUTH.signOut()
-            .then(() => {
-                console.log('User logged out');
-                navigation.navigate('Login');
-            })
-            .catch((error) => {
-                console.error('Error logging out:', error);
-            });
+    const handleLogout = async () => {
+        try {
+            await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role'])
+            navigation.replace('Login');
+        } catch(error) {
+            console.log("Error logging out", error);
+            Alert.alert('Error', 'Failed to log out. Please try again.');
+        }
     };
 
     return (
@@ -643,10 +704,10 @@ export default function Tasks({ route, navigation }) {
                     {(isAdminView || userRole === "admin") ? (
                         <TouchableOpacity
                             onPress={() => {
-                                if (isAdminView && viewingUserId !== FIREBASE_AUTH.currentUser?.uid) {
+                                if (isAdminView && viewingUserId !== user?.userId) {
                                     navigation.navigate("Admin"); // Admin viewing users' tasks → Go to Admin Dashboard
                                 } else {
-                                    // navigation.navigate("AdminTasks"); // Admin viewing their own tasks → Go to AdminTasks
+                                    // Admin viewing their own tasks → Go back to previous screen
                                     if (navigation.canGoBack()) {
                                         navigation.goBack();
                                     } else {
@@ -742,7 +803,7 @@ export default function Tasks({ route, navigation }) {
                 <FlatList
                 data={tasks}
                 renderItem={renderTask}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => item._id}
                 />
             )}
 

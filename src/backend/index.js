@@ -115,6 +115,7 @@ const holidaysRouter = require('./routes/holidays');
 const leavesRouter = require('./routes/leaves')
 const compoffRoutes = require('./routes/compoff')
 const attendanceRoutes = require('./routes/attendance');
+const tasksRoutes = require('./routes/tasks');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -148,6 +149,9 @@ app.use('/api/compoff', compoffRoutes);
 
 // mount attendance route
 app.use('/api/attendance', attendanceRoutes);
+
+// mount tasks route
+app.use('/api/tasks', tasksRoutes);
 
 // Root route
 app.get('/', (req, res) => {
