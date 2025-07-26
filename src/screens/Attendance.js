@@ -45,43 +45,6 @@ export default function Attendance({ navigation }) {
     const [mode, setMode] = useState('date');
     const [user, setUser] = useState(null);
 
-    // const user = FIREBASE_AUTH.currentUser;
-
-    // useEffect(() => {
-    //     const fetchUserData = async () => {
-    //         const user = FIREBASE_AUTH.currentUser;
-    //         if (user) {
-    //             const userDoc = await getDoc(doc(FIRESTORE_DB, 'users', user.uid));
-    //             if (userDoc.exists()) {
-    //                 setUsername(userDoc.data().username);
-    //             } else {
-    //                 setUsername('User');
-    //             }
-    //         } else {
-    //             setUsername('Guest');
-    //         }
-    //     };
-
-    //     fetchUserData();
-    //     fetchPaidHolidays();
-    // }, []);
-
-    // useEffect(() => {
-    //     fetchAttendance();
-    // }, []);
-
-    // // fetch weekly attendance 
-    // useEffect(() => {
-    //     if (viewType === 'weekly') {
-    //         fetchWeeklyAttendance();
-    //     }
-    // }, [selectedWeek, viewType]);
-
-    // // fetch weekly attendance when component first loads
-    // useEffect(() => {
-    //     fetchWeeklyAttendance();
-    // }, []);
-
     useEffect(() => {
         const fetchUserData = async () => {
             try {
@@ -120,10 +83,10 @@ export default function Attendance({ navigation }) {
 
     // fetch weekly attendance 
     useEffect(() => {
-        if (viewType === 'weekly') {
+        if (viewType === 'weekly' && Object.keys(paidHolidays).length > 0) {
             fetchWeeklyAttendance();
         }
-    }, [selectedWeek, viewType]);
+    }, [selectedWeek, viewType, paidHolidays]);
 
     // fetch weekly attendance when component first loads
     useEffect(() => {
@@ -279,46 +242,41 @@ export default function Attendance({ navigation }) {
     };
 
     // regularize attendance
-    const requestRegularization = async(date) => {
-        if (!user) return;
+    const requestRegularization = async () => {
+        if (!user) {
+            Alert.alert('Error', 'User not authenticated');
+            return;
+        }
+        
         setIsRegularizing(true);
         try {
-            const dateObj = regularizationDate;
-            const formattedDate = dateObj.toLocaleDateString();
-        
-            const docId = `${user.uid}_${formattedDate.replace(/\//g, '-')}`;
-            const docRef = doc(FIRESTORE_DB, 'attendance', docId);
-            const docSnap = await getDoc(docRef);
-        
-            const baseData = {
-                userId: user.uid,
-                docId: docId,
+            const userId = user?.userId || await AsyncStorage.getItem('userId');
+            const formattedDate = format(regularizationDate, 'yyyy-MM-dd');
+            
+            const regularizationData = {
+                userId,
                 date: formattedDate,
                 checkInTime: null,
                 checkOutTime: null,
                 workedHours: null,
                 totalWorkedMinutes: 0,
                 regularization_requested: true,
-                regularization_date: formattedDate,
+                regularization_date: format(regularizationDate, 'MM/dd/yyyy'),
                 regularization_status: 'Pending'
             };
-        
-            if (docSnap.exists()) {
-                await updateDoc(docRef, {
-                    regularization_requested: true,
-                    regularization_date: formattedDate,
-                    regularization_status: 'Pending'
-                });
-            } else {
-                await setDoc(docRef, baseData);
-            }
+
+            const response = await axios.post('http://localhost:3000/api/attendance', regularizationData, {
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
+
             Alert.alert('Request Sent', 'Your regularization request has been sent to admin');
-            } catch (e) {
-                Alert.alert('Error', 'Failed to send request.');
-            } finally {
-                setIsRegularizing(false);
-            }
-    }
+        } catch (error) {
+            console.error('Error requesting regularization:', error);
+            Alert.alert('Error', 'Failed to send regularization request');
+        } finally {
+            setIsRegularizing(false);
+        }
+    };
 
     // function to format date strings
     const formatDateTime = (dateTimeString) => {
@@ -397,36 +355,22 @@ export default function Attendance({ navigation }) {
         }
     };
 
-    // Function to fetch paid holidays
-    // const fetchPaidHolidays = async () => {
-    //     try {
-    //         const currentYear = new Date().getFullYear();
-    //         const holidaysQuery = query(
-    //             collection(FIRESTORE_DB, 'paidHolidays'),
-    //             where('year', '==', currentYear)
-    //         );
-    //         const querySnapshot = await getDocs(holidaysQuery);
-    //         const holidaysMap = {};
-    //         querySnapshot.docs.forEach(doc => {
-    //             const holiday = doc.data();
-    //             // Parse date string "DD-MM-YYYY" and format to "YYYY-MM-DD" for consistency
-    //             const [day, month, year] = holiday.date.split('-');
-    //             const holidayDateFormatted = `${year}-${month}-${day}`;
-    //             holidaysMap[holidayDateFormatted] = holiday.description;
-    //         });
-    //         setPaidHolidays(holidaysMap);
-    //     } catch (error) {
-    //         console.error('Error fetching paid holidays:', error);
-    //     }
-    // };
-
     const fetchPaidHolidays = async () => {
         try {
             const currentYear = new Date().getFullYear();
-            const response = await axios.get(`http://localhost:3000/api/holidays?year=${currentYear}`);
-            // response.data should be an array of holidays
-            // Process and setPaidHolidays as needed
-            setPaidHolidays(response.data);
+            const response = await axios.get(`http://localhost:3000/api/holidays/${currentYear}`, {
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
+            
+            // Convert array to map with proper date format
+            const holidaysMap = {};
+            response.data.forEach(holiday => {
+                // Convert DD-MM format to YYYY-MM-DD for consistency
+                const [day, month] = holiday.date.split('-');
+                const holidayDateFormatted = `${currentYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                holidaysMap[holidayDateFormatted] = holiday.description;
+            });
+            setPaidHolidays(holidaysMap);
         } catch (error) {
             console.error('Error fetching paid holidays:', error);
         }
@@ -434,20 +378,19 @@ export default function Attendance({ navigation }) {
 
     // Function to fetch weekly attendance records
     const fetchWeeklyAttendance = async () => {
-        setIsLoading(true);
         try {
+            setIsLoading(true);
             const userId = user?.userId || await AsyncStorage.getItem('userId');
             if (!userId) return;
 
-            const start = startOfWeek(selectedWeek, { weekStartsOn: 0 });
-            const end = endOfWeek(selectedWeek, { weekStartsOn: 0 });
-            
-            const startDate = format(start, 'yyyy-MM-dd');
-            const endDate = format(end, 'yyyy-MM-dd');
+            const start = startOfWeek(selectedWeek, { weekStartsOn: 1 });
+            const end = endOfWeek(selectedWeek, { weekStartsOn: 1 });
 
-            console.log(`Fetching weekly attendance for ${userId} from ${startDate} to ${endDate}`);
             const response = await axios.get(`http://localhost:3000/api/attendance/user/${userId}/range`, {
-                params: { startDate, endDate },
+                params: {
+                    startDate: format(start, 'yyyy-MM-dd'),
+                    endDate: format(end, 'yyyy-MM-dd')
+                },
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
 
@@ -686,6 +629,157 @@ export default function Attendance({ navigation }) {
         });
     };
 
+    // // Function to export attendance records as Excel file
+    // const exportAttendanceRecords = async () => {
+    //     try {
+    //         setIsLoading(true);
+
+    //         // Determine which data to export based on current view
+    //         const dataToExport = viewType === 'weekly' ? weeklyAttendance : monthlyAttendance;
+
+    //         if (!dataToExport || dataToExport.length === 0) {
+    //             Alert.alert('No Data', 'There are no attendance records to export.');
+    //             setIsLoading(false);
+    //             return;
+    //         }
+
+    //         // Create worksheet data
+    //         const wsData = [
+    //             ['Day', 'Date', 'Check-In', 'Check-Out', 'Worked Hours'] // Header row
+    //         ];
+
+    //         // Add data rows
+    //         dataToExport.forEach(record => {
+    //             // Format values for Excel
+    //             const isWeekend = record.dayOfWeek === 'Sat' || record.dayOfWeek === 'Sun';
+    //             const isLeaveDay = leaveDays[record.date] === true;
+    //             const hasCheckedIn = record.checkInTime !== null;
+    //             const hasCheckedOut = record.checkOutTime !== null;
+
+    //             let checkInValue = hasCheckedIn ? formatTimeOnly(record.checkInTime) :
+    //                               isLeaveDay ? 'L' : isWeekend ? 'H' : '-';
+    //             let checkOutValue = hasCheckedOut ? formatTimeOnly(record.checkOutTime) :
+    //                                isLeaveDay ? 'L' : isWeekend ? 'H' : '-';
+    //             let hoursValue = hasCheckedIn && hasCheckedOut ? record.workedHours :
+    //                            isLeaveDay ? 'L' : isWeekend ? 'H' : '-';
+
+    //             wsData.push([
+    //                 record.dayOfWeek,
+    //                 record.formattedDate,
+    //                 checkInValue,
+    //                 checkOutValue,
+    //                 hoursValue
+    //             ]);
+    //         });
+
+    //         // Create workbook and worksheet
+    //         const ws = XLSX.utils.aoa_to_sheet(wsData);
+    //         const wb = XLSX.utils.book_new();
+    //         XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
+
+    //         // Define styles for different row types
+    //         const headerStyle = { fill: { fgColor: { rgb: "007AFF" }, patternType: "solid" }, font: { color: { rgb: "FFFFFF" }, bold: true } };
+    //         const evenRowStyle = { fill: { fgColor: { rgb: "F9F9F9" }, patternType: "solid" } };
+    //         const leaveDayStyle = { fill: { fgColor: { rgb: "FFEBEE" }, patternType: "solid" } };
+    //         const weekendWorkStyle = { fill: { fgColor: { rgb: "E3F2FD" }, patternType: "solid" } };
+    //         const partialDayStyle = { fill: { fgColor: { rgb: "FFF3E0" }, patternType: "solid" } };
+
+    //         // Apply header style
+    //         const headerRange = XLSX.utils.decode_range(ws['!ref']);
+    //         for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+    //             const cellRef = XLSX.utils.encode_cell({ r: 0, c: C });
+    //             if (!ws[cellRef]) continue;
+    //             if (!ws[cellRef].s) ws[cellRef].s = {};
+    //             Object.assign(ws[cellRef].s, headerStyle);
+    //         }
+
+    //         // Apply row styles based on conditions
+    //         dataToExport.forEach((record, idx) => {
+    //             const rowIdx = idx + 1; // +1 because header is row 0
+    //             const isWeekend = record.dayOfWeek === 'Sat' || record.dayOfWeek === 'Sun';
+    //             const isLeaveDay = leaveDays[record.date] === true;
+    //             const hasCheckedIn = record.checkInTime !== null;
+    //             const hasCheckedOut = record.checkOutTime !== null;
+
+    //             // Calculate worked hours for partial day check
+    //             let workedHoursNumeric = 0;
+    //             if (record.totalWorkedMinutes) {
+    //                 workedHoursNumeric = record.totalWorkedMinutes / 60;
+    //             }
+
+    //             const isPartialDay = hasCheckedIn && hasCheckedOut &&
+    //                                 workedHoursNumeric > 0 &&
+    //                                 workedHoursNumeric < 9;
+
+    //             // Determine which style to apply based on priority
+    //             let rowStyle;
+    //             if (isLeaveDay && (hasCheckedIn || hasCheckedOut)) {
+    //                 rowStyle = leaveDayStyle;
+    //             } else if (isWeekend && (hasCheckedIn || hasCheckedOut)) {
+    //                 rowStyle = weekendWorkStyle;
+    //             } else if (!isWeekend && !isLeaveDay && isPartialDay) {
+    //                 rowStyle = partialDayStyle;
+    //             } else if (isLeaveDay) {
+    //                 rowStyle = leaveDayStyle;
+    //             } else if (rowIdx % 2 === 0) {
+    //                 rowStyle = evenRowStyle;
+    //             }
+
+    //             // Apply the style to each cell in the row
+    //             if (rowStyle) {
+    //                 for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+    //                     const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: C });
+    //                     if (!ws[cellRef]) ws[cellRef] = { v: "" };
+    //                     if (!ws[cellRef].s) ws[cellRef].s = {};
+    //                     Object.assign(ws[cellRef].s, rowStyle);
+    //                 }
+    //             }
+    //         });
+
+    //         // Generate Excel file
+    //         const fileType = 'xlsx';
+    //         const fileName = `Attendance_${viewType === 'weekly' ? 'Weekly' : 'Monthly'}_${new Date().getTime()}.${fileType}`;
+
+    //         // Write the workbook as a base64 string
+    //         const wbout = XLSX.write(wb, { bookType: fileType, type: 'base64' });
+
+    //         // Create a temporary file path
+    //         const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+
+    //         // Write the base64 data to a file
+    //         await FileSystem.writeAsStringAsync(filePath, wbout, {
+    //             encoding: FileSystem.EncodingType.Base64
+    //         });
+
+    //         // Check if sharing is available
+    //         const isSharingAvailable = await Sharing.isAvailableAsync();
+
+    //         if (isSharingAvailable) {
+    //             // Share the file
+    //             await Sharing.shareAsync(filePath, {
+    //                 mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    //                 dialogTitle: 'Export Attendance Records',
+    //                 UTI: 'com.microsoft.excel.xlsx'
+    //             });
+
+    //             Alert.alert(
+    //                 'Export Successful',
+    //                 'Your attendance records have been exported successfully.'
+    //             );
+    //         } else {
+    //             Alert.alert(
+    //                 'Sharing Not Available',
+    //                 'Sharing is not available on this device.'
+    //             );
+    //         }
+    //     } catch (error) {
+    //         console.error('Error exporting attendance records:', error);
+    //         Alert.alert('Export Failed', 'There was an error exporting the attendance records.');
+    //     } finally {
+    //         setIsLoading(false);
+    //     }
+    // };
+
     // Function to export attendance records as Excel file
     const exportAttendanceRecords = async () => {
         try {
@@ -702,7 +796,7 @@ export default function Attendance({ navigation }) {
 
             // Create worksheet data
             const wsData = [
-                ['Day', 'Date', 'Check-In', 'Check-Out', 'Worked Hours'] // Header row
+                ['Day', 'Date', 'Check-In', 'Check-Out', 'Worked Hours', 'Status'] // Header row
             ];
 
             // Add data rows
@@ -710,22 +804,38 @@ export default function Attendance({ navigation }) {
                 // Format values for Excel
                 const isWeekend = record.dayOfWeek === 'Sat' || record.dayOfWeek === 'Sun';
                 const isLeaveDay = leaveDays[record.date] === true;
+                const isHoliday = record.isHoliday || paidHolidays[record.date];
                 const hasCheckedIn = record.checkInTime !== null;
                 const hasCheckedOut = record.checkOutTime !== null;
 
                 let checkInValue = hasCheckedIn ? formatTimeOnly(record.checkInTime) :
-                                  isLeaveDay ? 'L' : isWeekend ? 'H' : '-';
+                                isLeaveDay ? 'L' : 
+                                isHoliday ? 'H' : 
+                                isWeekend ? 'WE' : '-';
+                
                 let checkOutValue = hasCheckedOut ? formatTimeOnly(record.checkOutTime) :
-                                   isLeaveDay ? 'L' : isWeekend ? 'H' : '-';
+                                isLeaveDay ? 'L' : 
+                                isHoliday ? 'H' : 
+                                isWeekend ? 'WE' : '-';
+                
                 let hoursValue = hasCheckedIn && hasCheckedOut ? record.workedHours :
-                               isLeaveDay ? 'L' : isWeekend ? 'H' : '-';
+                            isLeaveDay ? 'L' : 
+                            isHoliday ? 'H' : 
+                            isWeekend ? 'WE' : '-';
+
+                let statusValue = isLeaveDay ? 'Leave' :
+                                isHoliday ? 'Holiday' :
+                                isWeekend ? 'Weekend' :
+                                hasCheckedIn && hasCheckedOut ? 'Present' :
+                                hasCheckedIn ? 'Partial' : 'Absent';
 
                 wsData.push([
                     record.dayOfWeek,
                     record.formattedDate,
                     checkInValue,
                     checkOutValue,
-                    hoursValue
+                    hoursValue,
+                    statusValue
                 ]);
             });
 
@@ -734,71 +844,22 @@ export default function Attendance({ navigation }) {
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
 
-            // Define styles for different row types
-            const headerStyle = { fill: { fgColor: { rgb: "007AFF" }, patternType: "solid" }, font: { color: { rgb: "FFFFFF" }, bold: true } };
-            const evenRowStyle = { fill: { fgColor: { rgb: "F9F9F9" }, patternType: "solid" } };
-            const leaveDayStyle = { fill: { fgColor: { rgb: "FFEBEE" }, patternType: "solid" } };
-            const weekendWorkStyle = { fill: { fgColor: { rgb: "E3F2FD" }, patternType: "solid" } };
-            const partialDayStyle = { fill: { fgColor: { rgb: "FFF3E0" }, patternType: "solid" } };
-
-            // Apply header style
-            const headerRange = XLSX.utils.decode_range(ws['!ref']);
-            for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
-                const cellRef = XLSX.utils.encode_cell({ r: 0, c: C });
-                if (!ws[cellRef]) continue;
-                if (!ws[cellRef].s) ws[cellRef].s = {};
-                Object.assign(ws[cellRef].s, headerStyle);
-            }
-
-            // Apply row styles based on conditions
-            dataToExport.forEach((record, idx) => {
-                const rowIdx = idx + 1; // +1 because header is row 0
-                const isWeekend = record.dayOfWeek === 'Sat' || record.dayOfWeek === 'Sun';
-                const isLeaveDay = leaveDays[record.date] === true;
-                const hasCheckedIn = record.checkInTime !== null;
-                const hasCheckedOut = record.checkOutTime !== null;
-
-                // Calculate worked hours for partial day check
-                let workedHoursNumeric = 0;
-                if (record.totalWorkedMinutes) {
-                    workedHoursNumeric = record.totalWorkedMinutes / 60;
-                }
-
-                const isPartialDay = hasCheckedIn && hasCheckedOut &&
-                                    workedHoursNumeric > 0 &&
-                                    workedHoursNumeric < 9;
-
-                // Determine which style to apply based on priority
-                let rowStyle;
-                if (isLeaveDay && (hasCheckedIn || hasCheckedOut)) {
-                    rowStyle = leaveDayStyle;
-                } else if (isWeekend && (hasCheckedIn || hasCheckedOut)) {
-                    rowStyle = weekendWorkStyle;
-                } else if (!isWeekend && !isLeaveDay && isPartialDay) {
-                    rowStyle = partialDayStyle;
-                } else if (isLeaveDay) {
-                    rowStyle = leaveDayStyle;
-                } else if (rowIdx % 2 === 0) {
-                    rowStyle = evenRowStyle;
-                }
-
-                // Apply the style to each cell in the row
-                if (rowStyle) {
-                    for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
-                        const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: C });
-                        if (!ws[cellRef]) ws[cellRef] = { v: "" };
-                        if (!ws[cellRef].s) ws[cellRef].s = {};
-                        Object.assign(ws[cellRef].s, rowStyle);
-                    }
-                }
-            });
+            // Set column widths
+            const colWidths = [
+                { wch: 10 }, // Day
+                { wch: 12 }, // Date
+                { wch: 12 }, // Check-In
+                { wch: 12 }, // Check-Out
+                { wch: 12 }, // Hours
+                { wch: 10 }  // Status
+            ];
+            ws['!cols'] = colWidths;
 
             // Generate Excel file
-            const fileType = 'xlsx';
-            const fileName = `Attendance_${viewType === 'weekly' ? 'Weekly' : 'Monthly'}_${new Date().getTime()}.${fileType}`;
+            const fileName = `Attendance_${viewType === 'weekly' ? 'Weekly' : 'Monthly'}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
 
             // Write the workbook as a base64 string
-            const wbout = XLSX.write(wb, { bookType: fileType, type: 'base64' });
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
 
             // Create a temporary file path
             const filePath = `${FileSystem.cacheDirectory}${fileName}`;
@@ -837,158 +898,158 @@ export default function Attendance({ navigation }) {
         }
     };
 
-    const handleLogout = async () => {
-        try {
-            await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role'])
-            navigation.replace('Login');
-        } catch(error) {
-            console.log("Error logging out", error);
-            Alert.alert('Error', 'Failed to log out. Please try again.');
-        }
-    };
-
-    // function to format worked hours 
-    const formatHoursToHMS = (hoursDecimal) => {
-        if (typeof hoursDecimal !== 'number' || isNaN(hoursDecimal) || hoursDecimal < 0) {
-            return '-'; 
-        }
-
-        const totalMinutes = Math.round(hoursDecimal * 60);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-
-        if (hours === 0 && minutes === 0) {
-            return '0h 0m';
-        } else if (hours === 0) {
-            return `${minutes}m`;
-        } else if (minutes === 0) {
-            return `${hours}h`;
-        } else {
-            return `${hours}h ${minutes}m`;
-        }
-    };
-
-    const renderAttendanceRow = ({ item, index }) => {
-        const isWeekend = item.dayOfWeek === 'Sun' || item.dayOfWeek === 'Sat';
-        const isHoliday = item.isHoliday;
-        const isLeaveDay = leaveDays[item.date] === true;
-        const hasCheckedIn = item.checkInTime !== null && item.checkInTime !== undefined && item.checkInTime !== '';
-        const hasCheckedOut = item.checkOutTime !== null && item.checkOutTime !== undefined && item.checkOutTime !== '';
-
-        // Calculate worked hours in numeric form for comparison
-        let workedHoursNumeric = 0;
-        if (item.totalWorkedMinutes) {
-            workedHoursNumeric = item.totalWorkedMinutes / 60;
-        }
-
-        // Check if it's a partial day (< 9 hours worked)
-        const isPartialDay = hasCheckedIn && hasCheckedOut &&
-                            workedHoursNumeric > 0 &&
-                            workedHoursNumeric < 9;
-
-        // Determine what to display for check-in
-        let checkInDisplay;
-        if (hasCheckedIn) {
-            checkInDisplay = formatTimeOnly(item.checkInTime);
-        } else if (isLeaveDay) {
-            checkInDisplay = 'L';
-        } else if (isHoliday) {
-            checkInDisplay = 'H';
-        } else if (isWeekend) {
-            checkInDisplay = 'H';
-        } else {
-            checkInDisplay = '-';
-        }
-
-        // Determine what to display for check-out
-        let checkOutDisplay;
-        if (hasCheckedOut) {
-            checkOutDisplay = formatTimeOnly(item.checkOutTime);
-        } else if (isLeaveDay) {
-            checkOutDisplay = 'L';
-        } else if (isHoliday) {
-            checkOutDisplay = 'H';
-        } else if (isWeekend) {
-            checkOutDisplay = 'H';
-        } else {
-            checkOutDisplay = '-';
-        }
-
-        // Determine what to display for worked hours
-        let hoursDisplay;
-        if (hasCheckedIn && hasCheckedOut) {
-            // hoursDisplay = item.workedHours != 'N/A' ? item.workedHours: '-'
-
-            // func to format the numeric worked hours
-            hoursDisplay = formatHoursToHMS(item.workedHours); 
-        } else if (isLeaveDay) {
-            hoursDisplay = 'L';
-        } else if (isHoliday) {
-            hoursDisplay = 'H';
-        } else if (isWeekend) {
-            hoursDisplay = 'H';
-        } else {
-            hoursDisplay = '-';
-        }
-
-        // Determine row style based on various conditions
-        let rowStyle = [styles.tableRow];
-
-        // Apply background colors based on priority
-        if (isLeaveDay && (hasCheckedIn || hasCheckedOut)) {
-            // Leave day with check-in/out - light red background
-            rowStyle.push(styles.leaveDayRow);
-        } else if (isHoliday && (hasCheckedIn || hasCheckedOut)) {
-            // Holiday with check-in/out - light blue background
-            rowStyle.push(styles.holidayWorkRow);
-        } else if (isWeekend && (hasCheckedIn || hasCheckedOut)) {
-            // Weekend with check-in/out - light blue background
-            rowStyle.push(styles.weekendWorkRow);
-        } else if (!isWeekend && !isHoliday && !isLeaveDay && isPartialDay) {
-            // Partial day (< 9 hours) on regular weekday - light orange background
-            rowStyle.push(styles.partialDayRow);
-        } else if (isLeaveDay) {
-            // Leave day without check-in/out - light red background
-            rowStyle.push(styles.leaveDayRow);
-        } else if (isHoliday) {
-            // Holiday without check-in/out - light blue background
-            rowStyle.push(styles.holidayRow);
-        } else if (index % 2 === 0) {
-            // Even rows - light gray
-            rowStyle.push(styles.evenRow);
-        } else {
-            // Odd rows - white
-            rowStyle.push(styles.oddRow);
-        }
-
-        // Determine text style based on the content
-        const getTextStyle = (content) => {
-            if (content === 'L' && isLeaveDay) {
-                return styles.leaveText;
-            } else if (content === 'H' && (isHoliday || isWeekend)) {
-                return styles.weekendText;
-            } else if (isPartialDay && !isLeaveDay && !isHoliday && !isWeekend) {
-                return styles.partialDayText;
+        const handleLogout = async () => {
+            try {
+                await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role'])
+                navigation.replace('Login');
+            } catch(error) {
+                console.log("Error logging out", error);
+                Alert.alert('Error', 'Failed to log out. Please try again.');
             }
-            return null;
         };
 
-        return (
-            <View key={item.date} style={rowStyle}>
-                <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.dayOfWeek}</Text>
-                <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.formattedDate}</Text>
-                <Text style={[styles.tableCell, { flex: 2 }, getTextStyle(checkInDisplay)]}>
-                    {checkInDisplay}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 2 }, getTextStyle(checkOutDisplay)]}>
-                    {checkOutDisplay}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 1.5 }, getTextStyle(hoursDisplay)]}>
-                    {hoursDisplay}
-                </Text>
-            </View>
-        );
-    };
+        // function to format worked hours 
+        const formatHoursToHMS = (hoursDecimal) => {
+            if (typeof hoursDecimal !== 'number' || isNaN(hoursDecimal) || hoursDecimal < 0) {
+                return '-'; 
+            }
+
+            const totalMinutes = Math.round(hoursDecimal * 60);
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+
+            if (hours === 0 && minutes === 0) {
+                return '0h 0m';
+            } else if (hours === 0) {
+                return `${minutes}m`;
+            } else if (minutes === 0) {
+                return `${hours}h`;
+            } else {
+                return `${hours}h ${minutes}m`;
+            }
+        };
+
+        const renderAttendanceRow = ({ item, index }) => {
+            const isWeekend = item.dayOfWeek === 'Sun' || item.dayOfWeek === 'Sat';
+            const isHoliday = item.isHoliday;
+            const isLeaveDay = leaveDays[item.date] === true;
+            const hasCheckedIn = item.checkInTime !== null && item.checkInTime !== undefined && item.checkInTime !== '';
+            const hasCheckedOut = item.checkOutTime !== null && item.checkOutTime !== undefined && item.checkOutTime !== '';
+
+            // Calculate worked hours in numeric form for comparison
+            let workedHoursNumeric = 0;
+            if (item.totalWorkedMinutes) {
+                workedHoursNumeric = item.totalWorkedMinutes / 60;
+            }
+
+            // Check if it's a partial day (< 9 hours worked)
+            const isPartialDay = hasCheckedIn && hasCheckedOut &&
+                                workedHoursNumeric > 0 &&
+                                workedHoursNumeric < 9;
+
+            // Determine what to display for check-in
+            let checkInDisplay;
+            if (hasCheckedIn) {
+                checkInDisplay = formatTimeOnly(item.checkInTime);
+            } else if (isLeaveDay) {
+                checkInDisplay = 'L';
+            } else if (isHoliday) {
+                checkInDisplay = 'H';
+            } else if (isWeekend) {
+                checkInDisplay = 'H';
+            } else {
+                checkInDisplay = '-';
+            }
+
+            // Determine what to display for check-out
+            let checkOutDisplay;
+            if (hasCheckedOut) {
+                checkOutDisplay = formatTimeOnly(item.checkOutTime);
+            } else if (isLeaveDay) {
+                checkOutDisplay = 'L';
+            } else if (isHoliday) {
+                checkOutDisplay = 'H';
+            } else if (isWeekend) {
+                checkOutDisplay = 'H';
+            } else {
+                checkOutDisplay = '-';
+            }
+
+            // Determine what to display for worked hours
+            let hoursDisplay;
+            if (hasCheckedIn && hasCheckedOut) {
+                // hoursDisplay = item.workedHours != 'N/A' ? item.workedHours: '-'
+
+                // func to format the numeric worked hours
+                hoursDisplay = formatHoursToHMS(item.workedHours); 
+            } else if (isLeaveDay) {
+                hoursDisplay = 'L';
+            } else if (isHoliday) {
+                hoursDisplay = 'H';
+            } else if (isWeekend) {
+                hoursDisplay = 'H';
+            } else {
+                hoursDisplay = '-';
+            }
+
+            // Determine row style based on various conditions
+            let rowStyle = [styles.tableRow];
+
+            // Apply background colors based on priority
+            if (isLeaveDay && (hasCheckedIn || hasCheckedOut)) {
+                // Leave day with check-in/out - light red background
+                rowStyle.push(styles.leaveDayRow);
+            } else if (isHoliday && (hasCheckedIn || hasCheckedOut)) {
+                // Holiday with check-in/out - light blue background
+                rowStyle.push(styles.holidayWorkRow);
+            } else if (isWeekend && (hasCheckedIn || hasCheckedOut)) {
+                // Weekend with check-in/out - light blue background
+                rowStyle.push(styles.weekendWorkRow);
+            } else if (!isWeekend && !isHoliday && !isLeaveDay && isPartialDay) {
+                // Partial day (< 9 hours) on regular weekday - light orange background
+                rowStyle.push(styles.partialDayRow);
+            } else if (isLeaveDay) {
+                // Leave day without check-in/out - light red background
+                rowStyle.push(styles.leaveDayRow);
+            } else if (isHoliday) {
+                // Holiday without check-in/out - light blue background
+                rowStyle.push(styles.holidayRow);
+            } else if (index % 2 === 0) {
+                // Even rows - light gray
+                rowStyle.push(styles.evenRow);
+            } else {
+                // Odd rows - white
+                rowStyle.push(styles.oddRow);
+            }
+
+            // Determine text style based on the content
+            const getTextStyle = (content) => {
+                if (content === 'L' && isLeaveDay) {
+                    return styles.leaveText;
+                } else if (content === 'H' && (isHoliday || isWeekend)) {
+                    return styles.weekendText;
+                } else if (isPartialDay && !isLeaveDay && !isHoliday && !isWeekend) {
+                    return styles.partialDayText;
+                }
+                return null;
+            };
+
+            return (
+                <View key={item.date} style={rowStyle}>
+                    <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.dayOfWeek}</Text>
+                    <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.formattedDate}</Text>
+                    <Text style={[styles.tableCell, { flex: 2 }, getTextStyle(checkInDisplay)]}>
+                        {checkInDisplay}
+                    </Text>
+                    <Text style={[styles.tableCell, { flex: 2 }, getTextStyle(checkOutDisplay)]}>
+                        {checkOutDisplay}
+                    </Text>
+                    <Text style={[styles.tableCell, { flex: 1.5 }, getTextStyle(hoursDisplay)]}>
+                        {hoursDisplay}
+                    </Text>
+                </View>
+            );
+        };
 
     return (
         <View style={styles.mainContainer}>
