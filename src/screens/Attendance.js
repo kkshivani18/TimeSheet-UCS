@@ -376,7 +376,59 @@ export default function Attendance({ navigation }) {
         }
     };
 
-    // Function to fetch weekly attendance records
+    // fetch leave data for any date range
+    const fetchLeaveData = async (startDate, endDate) => {
+        try {
+            const userId = user?.userId || await AsyncStorage.getItem('userId');
+            if (!userId) return {};
+
+            // const year = startDate.getFullYear();
+            // const month = startDate.getMonth() + 1;
+
+            // const response = await axios.get(`http://localhost:3000/api/leaves/user/${userId}`, {
+            //     params: {
+            //         userId,
+            //         year,
+            //         month: month.toString().padStart(2, '0')
+            //     },
+            //     headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            // });
+            
+            const response = await axios.get(`http://localhost:3000/api/leaves/user/${userId}`, {
+            headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
+
+            console.log('Leave data response:', response.data);
+
+            const leaveData = {};
+            response.data.forEach(leave => {
+                // Parse leave dates
+                const leaveStartDate = new Date(leave.startDate);
+                const leaveEndDate = new Date(leave.endDate);
+
+                // Mark all days in the leave period that fall within our date range
+                const currentDate = new Date(leaveStartDate);
+                while (currentDate <= leaveEndDate) {
+                    const dateStr = format(currentDate, 'yyyy-MM-dd');
+                    
+                    // Check if the leave day is within the selected date range
+                    if (currentDate >= startDate && currentDate <= endDate) {
+                        leaveData[dateStr] = leave.leaveType || 'Leave';
+                    }
+                    
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+            });
+            setLeaveDays(leaveData);
+            return leaveData;
+        } catch (error) {
+            console.error('Error fetching leave data:', error);
+            setLeaveDays({});
+            return {};
+        }
+    };
+
+    // fetch weekly attendance records
     const fetchWeeklyAttendance = async () => {
         try {
             setIsLoading(true);
@@ -386,7 +438,10 @@ export default function Attendance({ navigation }) {
             const start = startOfWeek(selectedWeek, { weekStartsOn: 1 });
             const end = endOfWeek(selectedWeek, { weekStartsOn: 1 });
 
-            const response = await axios.get(`http://localhost:3000/api/attendance/user/${userId}/range`, {
+            // Fetch leave data first and update state
+            const currentLeaveDays = await fetchLeaveData(start, end);
+            
+            const attendanceResponse = await axios.get(`http://localhost:3000/api/attendance/user/${userId}/range`, {
                 params: {
                     startDate: format(start, 'yyyy-MM-dd'),
                     endDate: format(end, 'yyyy-MM-dd')
@@ -394,7 +449,7 @@ export default function Attendance({ navigation }) {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
 
-            const attendanceRecords = response.data || [];
+            const attendanceRecords = attendanceResponse.data || [];
             
             // Get all days in the week
             const daysInWeek = [];
@@ -416,7 +471,9 @@ export default function Attendance({ navigation }) {
                     workedHours: '-',
                     totalWorkedMinutes: 0,
                     isHoliday: !!paidHolidays[formattedDate],
-                    holidayDescription: paidHolidays[formattedDate] || null
+                    holidayDescription: paidHolidays[formattedDate] || null,
+                    isLeave: !!currentLeaveDays[formattedDate],
+                    leaveType: currentLeaveDays[formattedDate] || null
                 };
             });
 
@@ -451,22 +508,22 @@ export default function Attendance({ navigation }) {
         }
     };
 
-    // Function to navigate to previous week
+    // navigate to previous week
     const goToPreviousWeek = () => {
         setSelectedWeek(prevWeek => subWeeks(prevWeek, 1));
     };
 
-    // Function to navigate to next week
+    // navigate to next week
     const goToNextWeek = () => {
         setSelectedWeek(prevWeek => addWeeks(prevWeek, 1));
     };
 
-    // Function to go to current week
+    // go to current week
     const goToCurrentWeek = () => {
         setSelectedWeek(new Date());
     };
 
-    // Function to fetch monthly attendance records
+    // fetch monthly attendance records
     const fetchMonthlyAttendance = async () => {
         setIsLoading(true);
         try {
@@ -484,15 +541,16 @@ export default function Attendance({ navigation }) {
             const startDate = format(firstDayOfMonth, 'yyyy-MM-dd');
             const endDate = format(lastDayOfMonth, 'yyyy-MM-dd');
 
-            console.log(`Fetching monthly attendance for ${userId} from ${startDate} to ${endDate}`);
+            // fetch both attendance and leave data
+            const [attendanceResponse, currentLeaveDays] = await Promise.all([
+                axios.get(`http://localhost:3000/api/attendance/user/${userId}/range`, {
+                    params: { startDate, endDate },
+                    headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+                }),
+                fetchLeaveData(firstDayOfMonth, lastDayOfMonth)
+            ]);
 
-            // Fetch attendance data from MongoDB
-            const response = await axios.get(`http://localhost:3000/api/attendance/user/${userId}/range`, {
-                params: { startDate, endDate },
-                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
-            });
-
-            const attendanceRecords = response.data || [];
+            const attendanceRecords = attendanceResponse.data || [];
 
             // Get all days in the month
             const daysInMonth = [];
@@ -514,12 +572,11 @@ export default function Attendance({ navigation }) {
                     workedHours: 'N/A',
                     totalWorkedMinutes: 0,
                     isHoliday: !!paidHolidays[formattedDate],
-                    holidayDescription: paidHolidays[formattedDate] || null
+                    holidayDescription: paidHolidays[formattedDate] || null,
+                    isLeave: !!currentLeaveDays[formattedDate],
+                    leaveType: currentLeaveDays[formattedDate] || null
                 };
             });
-
-            // Fetch leave data for the month
-            await fetchMonthLeaveData(firstDayOfMonth, lastDayOfMonth);
 
             // Map attendance records to dates
             const attendanceMap = {};
@@ -550,59 +607,6 @@ export default function Attendance({ navigation }) {
             Alert.alert('Error', 'Failed to load monthly attendance records');
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    // Function to fetch leave data for the entire month
-    const fetchMonthLeaveData = async (startDate, endDate) => {
-        if (!user) return;
-
-        try {
-            console.log('Fetching leave data for month:', format(startDate, 'yyyy-MM-dd'), 'to', format(endDate, 'yyyy-MM-dd'));
-
-            // Query approved leave requests for the current user
-            const leaveQuery = query(
-                collection(FIRESTORE_DB, 'leaveRequests'),
-                where('userId', '==', user.uid),
-                where('status', '==', 'Approved')
-            );
-
-            const querySnapshot = await getDocs(leaveQuery);
-            console.log('Found', querySnapshot.size, 'approved leave requests');
-
-            const leaveData = {};
-
-            // Process each leave request
-            querySnapshot.forEach(doc => {
-                const leave = doc.data();
-                console.log('Processing leave request:', leave);
-
-                // Convert string dates to Date objects
-                const leaveStartDate = new Date(leave.startDate);
-                const leaveEndDate = new Date(leave.endDate);
-
-                console.log('Leave period:', format(leaveStartDate, 'yyyy-MM-dd'), 'to', format(leaveEndDate, 'yyyy-MM-dd'));
-
-                // Mark all days in the leave period
-                const currentDate = new Date(leaveStartDate);
-                while (currentDate <= leaveEndDate) {
-                    const dateStr = format(currentDate, 'yyyy-MM-dd');
-
-                    // Check if the leave day is within the selected month
-                    if (currentDate >= startDate && currentDate <= endDate) {
-                        leaveData[dateStr] = leave.leaveType; // Store the actual leaveType
-                        console.log('Marked leave day:', dateStr, 'Type:', leave.leaveType);
-                    }
-
-                    // Move to next day
-                    currentDate.setDate(currentDate.getDate() + 1);
-                }
-            });
-
-            console.log('Final leave days data for month:', leaveData);
-            setLeaveDays(leaveData);
-        } catch (error) {
-            console.error('Error fetching leave data for month:', error);
         }
     };
 
@@ -932,9 +936,11 @@ export default function Attendance({ navigation }) {
         const renderAttendanceRow = ({ item, index }) => {
             const isWeekend = item.dayOfWeek === 'Sun' || item.dayOfWeek === 'Sat';
             const isHoliday = item.isHoliday;
-            const isLeaveDay = leaveDays[item.date] === true;
+            const isLeaveDay = item.isLeave;
             const hasCheckedIn = item.checkInTime !== null && item.checkInTime !== undefined && item.checkInTime !== '';
             const hasCheckedOut = item.checkOutTime !== null && item.checkOutTime !== undefined && item.checkOutTime !== '';
+
+            console.log(`Rendering ${item.date}: isLeave=${isLeaveDay}, leaveDays[${item.date}]=${leaveDays[item.date]}`);
 
             // Calculate worked hours in numeric form for comparison
             let workedHoursNumeric = 0;
@@ -1599,10 +1605,10 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
     },
     leaveDayRow: {
-        backgroundColor: '#FFEBEE',
+        backgroundColor: '#FFE6E6',
     },
     leaveText: {
-        color: '#F44336',
+        color: '#DC143C',
         fontWeight: 'bold',
     },
     weekendWorkRow: {

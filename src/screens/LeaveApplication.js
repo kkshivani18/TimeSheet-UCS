@@ -25,51 +25,6 @@ export default function LeaveApplication({ navigation }) {
     const [leaveApplicationsUnsubscribe, setLeaveApplicationsUnsubscribe] = useState(null);
     const [user, setUser] = useState(null);
 
-    // useEffect(() => {
-    //     // Fetch current user's role
-    //     const fetchUserRole = async () => {
-    //         const user = FIREBASE_AUTH.currentUser;
-    //         if (!user) return;
-
-    //         try {
-    //             const userDocRef = doc(FIRESTORE_DB, 'users', user.uid);
-    //             const userDoc = await getDoc(userDocRef);
-    //             if (userDoc.exists()) {
-    //                 setUserRole(userDoc.data().role || 'user');
-    //             }
-    //         } catch (error) {
-    //             console.error("Error fetching user role:", error);
-    //         }
-    //     };
-
-    //     // Real-time listener for user's leave applications
-    //     const user = FIREBASE_AUTH.currentUser;
-    //     if (!user) return;
-
-    //     fetchUserRole();
-
-    //     const q = query(
-    //         collection(FIRESTORE_DB, 'leaveRequests'),
-    //         where('userId', '==', user.uid)
-    //     );
-
-    //     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-    //         const applications = querySnapshot.docs.map(doc => ({
-    //             id: doc.id,
-    //             ...doc.data(),
-    //             canModify: doc.data().status === 'pending'
-    //         }));
-    //         setLeaveApplications(applications);
-    //     }, (error) => {
-    //         if (FIREBASE_AUTH.currentUser) {
-    //             console.error("Error fetching leave applications:", error);
-    //             Alert.alert('Error', 'Could not load leave applications');
-    //         }
-    //     });
-
-    //     setLeaveApplicationsUnsubscribe(() => unsubscribe);
-    // }, []);
-
     useEffect(() => {
         const fetchUserAndLeaves = async () => {
           try {
@@ -96,24 +51,6 @@ export default function LeaveApplication({ navigation }) {
       
         fetchUserAndLeaves();
       }, []);
-
-    //   useEffect(() => {
-    //     const fetchLeaves = async () => {
-    //       const token = await AsyncStorage.getItem('token');
-    //       const userId = await AsyncStorage.getItem('userId');
-    //       if (!userId) return;
-    //       try {
-    //         const res = await axios.get(
-    //           `http://localhost:3000/api/leaves/user/${userId}`,
-    //           { headers: { Authorization: `Bearer ${token}` } }
-    //         );
-    //         setLeaveApplications(res.data);
-    //       } catch (e) {
-    //         console.error(e);
-    //       }
-    //     };
-    //     fetchLeaves();
-    //   }, []);   
 
     const formatDate = (date) => {
         const year = date.getFullYear();
@@ -151,53 +88,55 @@ export default function LeaveApplication({ navigation }) {
             return;
         }
 
-        const user = FIREBASE_AUTH.currentUser;
-        if (!user) {
-            Alert.alert('Error', 'User not logged in');
-            return;
-        }
-
-        // Calculate days of leave
-        const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)) + 1;
-
-        // Fetch the username from Firestore or use a default value
-        let username = 'user';
         try {
-            const userDoc = await getDoc(doc(FIRESTORE_DB, 'users', user.uid));
-            if (userDoc.exists()) {
-                username = userDoc.data().username;
+            const token = await AsyncStorage.getItem('token');
+            const userId = await AsyncStorage.getItem('userId');
+            
+            if (!userId || !token) {
+                Alert.alert('Error', 'User not authenticated');
+                return;
             }
-        } catch (error) {
-            console.error('Error fetching username:', error);
-        }
 
-        // Prepare leave request
-        const leaveRequest = {
-            userId: user.uid,
-            userEmail: user.email,
-            username: username,
-            reason: leaveReason,
-            startDate: formatDate(startDate),
-            endDate: formatDate(endDate),
-            status: 'pending',
-            createdAt: serverTimestamp(),
-            numberOfDays: days
-        };
+            // Calculate days of leave
+            const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)) + 1;
 
-        try {
-            // Add to leave requests collection
-            await addDoc(
-                collection(FIRESTORE_DB, 'leaveRequests'),
-                leaveRequest
+            // Prepare leave request for backend
+            const leaveRequest = {
+                userId: userId,
+                userEmail: user?.email || 'N/A',
+                username: user?.username || 'User',
+                reason: leaveReason,
+                startDate: formatDate(startDate),
+                endDate: formatDate(endDate),
+                status: 'pending',
+                numberOfDays: days
+            };
+
+            // Submit to backend API
+            const response = await axios.post(
+                'http://localhost:3000/api/leaves',
+                leaveRequest,
+                { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            Alert.alert('Success', 'Leave request submitted successfully');
-            setLeaveReason('');
-            setStartDate(new Date());
-            setEndDate(new Date());
+            if (response.status === 201) {
+                Alert.alert('Success', 'Leave request submitted successfully');
+                
+                // Reset form
+                setLeaveReason('');
+                setStartDate(new Date());
+                setEndDate(new Date());
+                
+                // Refresh leave applications list
+                const leavesResponse = await axios.get(
+                    `http://localhost:3000/api/leaves/user/${userId}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                setLeaveApplications(leavesResponse.data);
+            }
         } catch (error) {
             console.error('Error submitting leave:', error);
-            Alert.alert('Error', 'Could not submit leave request. Check your permissions.');
+            Alert.alert('Error', 'Could not submit leave request. Please try again.');
         }
     };
 

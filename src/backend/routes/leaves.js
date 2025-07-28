@@ -48,7 +48,11 @@ router.get('/', async (req, res) => {
 router.get('/user/:userId', async(req, res) => {
   try {
     const { userId } = req.params;
-    const leaves = await Leave.find({ userId }).sort({ createdAt: -1 });
+    const leaves = await Leave.find({ 
+      userId,
+      status: 'Approved'
+    }, ).sort({ createdAt: -1 });
+    
     res.json(leaves);
   } catch (err) {
     res.status(500).json({error: err.message });
