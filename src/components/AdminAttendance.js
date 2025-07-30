@@ -41,27 +41,18 @@ export default function AdminAttendance({ navigation }) {
     // Check if current user is admin
     const checkAdminAccess = async () => {
         try {
-            const currentUser = FIREBASE_AUTH.currentUser;
-            if (!currentUser) {
+            const role = await AsyncStorage.getItem('role');
+            const userId = await AsyncStorage.getItem('userId');
+            
+            if (!userId) {
                 navigation.replace('Login');
                 return;
             }
 
-            const userDoc = await getDocs(
-                query(
-                    collection(FIRESTORE_DB, 'users'),
-                    where('email', '==', currentUser.email)
-                )
-            );
-
-            if (!userDoc.empty) {
-                const userData = userDoc.docs[0].data();
-                setUsername(userData.username);
-                setIsAdmin(userData.role === 'admin');
-                if (userData.role !== 'admin') {
-                    Alert.alert('Access Denied', 'Only admins can access this screen');
-                    navigation.replace('Dashboard');
-                }
+            setIsAdmin(role === 'admin');
+            if (role !== 'admin') {
+                Alert.alert('Access Denied', 'Only admins can access this screen');
+                navigation.replace('Dashboard');
             }
         } catch (error) {
             console.error('Error checking admin status:', error);
@@ -259,15 +250,14 @@ export default function AdminAttendance({ navigation }) {
     };
 
     // Handle logout
-    const handleLogout = () => {
-        FIREBASE_AUTH.signOut()
-            .then(() => {
-                console.log('User logged out');
-                navigation.navigate('Login');
-            })
-            .catch((error) => {
-                console.error('Error logging out:', error);
-            });
+    const handleLogout = async () => {
+        try {
+            await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role']);
+            navigation.replace('Login');
+        } catch (error) {
+            console.error('Error logging out:', error);
+            navigation.replace('Login');
+        }
     };
 
     const handleHolidaysUpload = async () => {

@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { DrawerActions } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
-import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, query, getDocs, where } from 'firebase/firestore';
+// import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
+// import { collection, query, getDocs, where } from 'firebase/firestore';
 import { Icon } from 'react-native-elements';
 import { Calendar } from 'react-native-calendars';
 
@@ -39,26 +39,18 @@ export default function Admin({ navigation }) {
     // Check if current user is admin
     const checkAdminAccess = async () => {
         try {
-            const currentUser = FIREBASE_AUTH.currentUser;
-            if (!currentUser) {
+            const role = await AsyncStorage.getItem('role');
+            const userId = await AsyncStorage.getItem('userId');
+            
+            if (!userId) {
                 navigation.replace('Login');
                 return;
             }
 
-            const userDoc = await getDocs(
-                query(
-                    collection(FIRESTORE_DB, 'users'),
-                    where('email', '==', currentUser.email)
-                )
-            );
-
-            if (!userDoc.empty) {
-                const userData = userDoc.docs[0].data();
-                setIsAdmin(userData.role === 'admin');
-                if (userData.role !== 'admin') {
-                    Alert.alert('Access Denied', 'Only admins can access this screen');
-                    navigation.replace('Dashboard');
-                }
+            setIsAdmin(role === 'admin');
+            if (role !== 'admin') {
+                Alert.alert('Access Denied', 'Only admins can access this screen');
+                navigation.replace('Dashboard');
             }
         } catch (error) {
             console.error('Error checking admin status:', error);

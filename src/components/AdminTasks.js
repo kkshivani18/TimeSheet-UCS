@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, Platform } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Picker } from '@react-native-picker/picker';
-import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
+// import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
+// import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -156,15 +156,14 @@ export default function AdminTasks({ navigation }) {
         return months[monthIndex].label;
     };
 
-    const handleLogout = () => {
-        FIREBASE_AUTH.signOut()
-            .then(() => {
-                console.log('User logged out');
-                navigation.navigate('Login');
-            })
-            .catch((error) => {
-                console.error('Error logging out:', error);
-            });
+    const handleLogout = async () => {
+        try { 
+            await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role']);
+            navigation.replace('Login');
+        } catch (error) {
+            console.error('Error logging out:', error);
+            navigation.replace('Login');
+        }
     };
 
     return (

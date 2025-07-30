@@ -30,6 +30,8 @@ export default function Login() {
             await AsyncStorage.setItem('username', username);
             await AsyncStorage.setItem('role', role);
 
+            console.log('Login successful. role:', role);
+
             // Navigation based on role
             if (role === 'admin') {
                 navigation.replace('Admin');

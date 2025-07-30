@@ -116,6 +116,7 @@ const leavesRouter = require('./routes/leaves')
 const compoffRoutes = require('./routes/compoff')
 const attendanceRoutes = require('./routes/attendance');
 const tasksRoutes = require('./routes/tasks');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -152,6 +153,9 @@ app.use('/api/attendance', attendanceRoutes);
 
 // mount tasks route
 app.use('/api/tasks', tasksRoutes);
+
+// mount admin route
+app.use('/api/admin', adminRoutes);
 
 // Root route
 app.get('/', (req, res) => {

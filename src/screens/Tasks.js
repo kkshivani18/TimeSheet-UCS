@@ -242,6 +242,15 @@ export default function Tasks({ route, navigation }) {
             return;
         }
 
+        // In navigation buttons section
+        if (isAdminView) {
+            navigation.navigate('Admin');
+        } else if (userRole === 'admin') {
+            navigation.navigate('Admin');
+        } else if(userRole !== 'admin') {
+            navigation.navigate('Dashboard');
+        }
+
         setEditingTask(null);
         setEditHeading('');
         setEditDescription('');
