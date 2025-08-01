@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Leave = require('../models/Leaves');
-const authMiddleware = require('../middleware/auth');
-const adminMiddleware = require('./admin');
+// const authMiddleware = require('../middleware/auth');
+// const adminMiddleware = require('./admin');
 
 // Create a new leave request
 router.post('/', async (req, res) => {

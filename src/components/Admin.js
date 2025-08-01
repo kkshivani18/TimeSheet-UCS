@@ -266,18 +266,6 @@ export default function Admin({ navigation }) {
                         {selectedUser.username}'s Calendar
                     </Text>
 
-                    {/* Legend */}
-                    <View style={styles.legendContainer}>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendDot, { backgroundColor: '#007AFF' }]} />
-                            <Text style={styles.legendText}>Holiday</Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendDot, { backgroundColor: '#DC143C' }]} />
-                            <Text style={styles.legendText}>Leave</Text>
-                        </View>
-                    </View>
-
                     <Calendar
                         key={`${selectedYear}-${selectedMonth}`}
                         style={styles.calendar}
@@ -307,6 +295,17 @@ export default function Admin({ navigation }) {
                         current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`}
                         onDayPress={(day) => viewUserTasks(day.dateString)}
                     />
+                    {/* Legend */}
+                    <View style={styles.legendContainer}>
+                        <View style={styles.legendItem}>
+                            <View style={[styles.legendColor, { backgroundColor: '#DC143C' }]} />
+                            <Text style={styles.legendText}>Leave Day</Text>
+                        </View>
+                        <View style={styles.legendItem}>
+                            <View style={[styles.legendColor, { backgroundColor: '#007AFF' }]} />
+                            <Text style={styles.legendText}>Paid Holiday</Text>
+                        </View>
+                    </View>
                 </View>
             )}
         </View>
@@ -367,7 +366,7 @@ const styles = StyleSheet.create({
     card: {
         backgroundColor: 'white',
         borderRadius: 10,
-        padding: 20,
+        padding: 15,
         shadowColor: '#000',
         shadowOffset: {
             width: 0,
@@ -381,7 +380,7 @@ const styles = StyleSheet.create({
     subtitle: {
         fontSize: 16,
         fontWeight: '600',
-        marginBottom: 16,
+        marginBottom: 10,
         color: '#333',
     },
     calendar: {
@@ -389,22 +388,24 @@ const styles = StyleSheet.create({
     },
     legendContainer: {
         flexDirection: 'row',
-        justifyContent: 'center',
-        marginBottom: 15,
-        gap: 20,
+        justifyContent: 'space-around',
+        marginTop: 15,
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: '#f0f0f0',
     },
     legendItem: {
         flexDirection: 'row',
         alignItems: 'center',
     },
-    legendDot: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        marginRight: 5,
+    legendColor: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        marginRight: 8,
     },
     legendText: {
-        fontSize: 12,
+        fontSize: 14,
         color: '#666',
     },
 });
