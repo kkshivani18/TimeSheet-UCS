@@ -5,7 +5,7 @@ const authMiddleware = require('../middleware/auth');
 const adminMiddleware = require('./admin');
 
 // Create a new leave request
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', async (req, res) => {
     try {
       const leave = new Leave(req.body);
       await leave.save();
@@ -45,7 +45,7 @@ router.get('/', async (req, res) => {
 });
 
 // get all leave requests for a user
-router.get('/user/:userId', authMiddleware, async(req, res) => {
+router.get('/user/:userId', async(req, res) => {
   try {
     const { userId } = req.params;
     const leaves = await Leave.find({ 
@@ -60,7 +60,7 @@ router.get('/user/:userId', authMiddleware, async(req, res) => {
 })
 
 // get user leaves for admin view
-router.get('/users/:userId/leaves', authMiddleware, adminMiddleware, async (req, res) => {
+router.get('/users/:userId/leaves', async (req, res) => {
     try {
         const { userId } = req.params;
         const { year, month } = req.query;
