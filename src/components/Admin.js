@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { DrawerActions } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
-// import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-// import { collection, query, getDocs, where } from 'firebase/firestore';
 import { Icon } from 'react-native-elements';
 import { Calendar } from 'react-native-calendars';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 const months = [
     { label: 'January', value: 1 },
@@ -29,14 +29,22 @@ export default function Admin({ navigation }) {
     const [isAdmin, setIsAdmin] = useState(true);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-
+    const [paidHolidays, setPaidHolidays] = useState({});
+    const [userLeaves, setUserLeaves] = useState({});
 
     useEffect(() => {
         checkAdminAccess();
         fetchUsers();
+        fetchPaidHolidays();
     }, []);
 
-    // Check if current user is admin
+    useEffect(() => {
+        if (selectedUser) {
+            fetchUserLeaves();
+        }
+    }, [selectedUser, selectedMonth, selectedYear]);
+
+    // check if current user is admin
     const checkAdminAccess = async () => {
         try {
             const role = await AsyncStorage.getItem('role');
@@ -58,28 +66,106 @@ export default function Admin({ navigation }) {
         }
     };
 
-    // Fetch all users except admins
+    // fetch all users 
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const usersQuery = query(
-                collection(FIRESTORE_DB, 'users'),
-                where('role', '==', 'user')
-            );
-            
-            const querySnapshot = await getDocs(usersQuery);
-            const usersList = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            
-            setUsers(usersList);
+            const response = await axios.get('http://localhost:3000/api/admin/users');
+            console.log('Users fetched:', response.data);
+            setUsers(response.data);
         } catch (error) {
             console.error('Error fetching users:', error);
             Alert.alert('Error', 'Failed to fetch users');
         } finally {
             setLoading(false);
         }
+    };
+
+    // fetch paid holidays
+    const fetchPaidHolidays = async () => {
+        try {
+            const response = await axios.get(`http://localhost:3000/api/holidays/${selectedYear}`);
+            
+            const holidaysMap = {};
+            response.data.forEach(holiday => {
+                const [day, month] = holiday.date.split('-');
+                const holidayDateFormatted = `${selectedYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                holidaysMap[holidayDateFormatted] = holiday.description;
+            });
+            setPaidHolidays(holidaysMap);
+        } catch (error) {
+            console.error('Error fetching holidays:', error);
+        }
+    };
+
+    // fetch user leaves
+    const fetchUserLeaves = async () => {
+        if (!selectedUser) return;
+        try {
+            const response = await axios.get(`http://localhost:3000/api/leaves?userId=${selectedUser.userId}&year=${selectedYear}&month=${selectedMonth.toString().padStart(2, '0')}`);
+            
+            const leavesMap = {};
+            response.data.forEach(leave => {
+                const startDate = new Date(leave.startDate);
+                const endDate = new Date(leave.endDate);
+                
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    const dateStr = d.toISOString().split('T')[0];
+                    leavesMap[dateStr] = leave.leaveType || 'Leave';
+                }
+            });
+            setUserLeaves(leavesMap);
+        } catch (error) {
+            console.error('Error fetching user leaves:', error);
+        }
+    };
+
+    // marked dates for calendar
+    const getMarkedDates = () => {
+        const markedDates = {};
+        
+        // mark holidays
+        Object.keys(paidHolidays).forEach(date => {
+            const [year, month] = date.split('-');
+            if (parseInt(year) === selectedYear && parseInt(month) === selectedMonth) {
+                markedDates[date] = {
+                    marked: true,
+                    dotColor: '#007AFF',
+                    customStyles: {
+                        container: {
+                            backgroundColor: '#E5F9F6'
+                        },
+                        text: {
+                            color: '#007AFF',
+                            fontWeight: 'bold'
+                        }
+                    }
+                };
+            }
+        });
+        
+        // mark user leaves
+        Object.keys(userLeaves).forEach(date => {
+            const [year, month] = date.split('-');
+            if (parseInt(year) === selectedYear && parseInt(month) === selectedMonth) {
+                markedDates[date] = {
+                    ...markedDates[date],
+                    marked: true,
+                    dotColor: markedDates[date] ? '#DC143C' : '#007AFF', 
+                    customStyles: {
+                        container: {
+                            backgroundColor: markedDates[date] ? '#FFE5E5' : '#E5F9F6'
+                        },
+                        text: {
+                            color: markedDates[date] ? '#DC143C' : '#007AFF',
+                            fontWeight: 'bold'
+                        }
+                    }
+                };
+            }
+        });
+        
+        return markedDates;
     };
 
     const handleMonthChange = (itemValue) => {
@@ -97,7 +183,7 @@ export default function Admin({ navigation }) {
         }
 
         navigation.navigate('Tasks', {
-            userId: selectedUser.id,
+            userId: selectedUser.userId,
             userEmail: selectedUser.email,
             username: selectedUser.username,
             date: date,
@@ -106,15 +192,14 @@ export default function Admin({ navigation }) {
         });
     };
 
-    const handleLogout = () => {
-        FIREBASE_AUTH.signOut()
-            .then(() => {
-                console.log('User logged out');
-                navigation.navigate('Login');
-            })
-            .catch((error) => {
-                console.error('Error logging out:', error);
-            });
+    const handleLogout = async () => {
+        try {
+            await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role']);
+            navigation.replace('Login');
+        } catch (error) {
+            console.error('Error logging out:', error);
+            navigation.replace('Login');
+        }
     };
 
     if (!isAdmin) {
@@ -136,19 +221,19 @@ export default function Admin({ navigation }) {
             <View style={styles.userPickerContainer}>
                 <Text style={styles.label}>Select Employee:</Text>
                 <Picker
-                    selectedValue={selectedUser?.id}
+                    selectedValue={selectedUser?.userId}
                     style={styles.picker}
                     onValueChange={(itemValue) => {
-                        const user = users.find(u => u.id === itemValue);
+                        const user = users.find(u => u.userId === itemValue);
                         setSelectedUser(user);
                     }}
-                >
-                    <Picker.Item label="Select an Employee" value={null} />
+            >
+                <Picker.Item label="Select an Employee" value={null} />
                     {users.map(user => (
                         <Picker.Item
-                            key={user.id}
+                            key={user.userId}
                             label={user.username}
-                            value={user.id}
+                            value={user.userId}
                         />
                     ))}
                 </Picker>
@@ -180,10 +265,25 @@ export default function Admin({ navigation }) {
                     <Text style={styles.subtitle}>
                         {selectedUser.username}'s Calendar
                     </Text>
+
+                    {/* Legend */}
+                    <View style={styles.legendContainer}>
+                        <View style={styles.legendItem}>
+                            <View style={[styles.legendDot, { backgroundColor: '#007AFF' }]} />
+                            <Text style={styles.legendText}>Holiday</Text>
+                        </View>
+                        <View style={styles.legendItem}>
+                            <View style={[styles.legendDot, { backgroundColor: '#DC143C' }]} />
+                            <Text style={styles.legendText}>Leave</Text>
+                        </View>
+                    </View>
+
                     <Calendar
                         key={`${selectedYear}-${selectedMonth}`}
                         style={styles.calendar}
                         hideArrows={true}
+                        markingType={'custom'}
+                        markedDates={getMarkedDates()}
                         theme={{
                         calendarBackground: 'white',
                         textSectionTitleColor: '#b6c1cd',
@@ -254,8 +354,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#f8f8f8',
         borderRadius: 8
     },
-
-    // Month/Year picker container matching AdminTasks.js
     pickerContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -266,8 +364,6 @@ const styles = StyleSheet.create({
         height: 55,
         width: 160,
     },
-
-    // Card container matching AdminTasks.js
     card: {
         backgroundColor: 'white',
         borderRadius: 10,
@@ -290,5 +386,25 @@ const styles = StyleSheet.create({
     },
     calendar: {
         borderRadius: 10,
-    }
+    },
+    legendContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        marginBottom: 15,
+        gap: 20,
+    },
+    legendItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    legendDot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        marginRight: 5,
+    },
+    legendText: {
+        fontSize: 12,
+        color: '#666',
+    },
 });

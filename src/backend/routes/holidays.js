@@ -14,6 +14,16 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.get('/', async (req, res) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const holidays = await Holiday.find({ year: currentYear });
+    res.json(holidays);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // get all holidays of a year
 router.get('/:year', async (req, res) => {
   try {
