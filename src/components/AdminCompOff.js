@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, FlatList, Modal, TextInput } from 'react-native';
-import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from 'firebase/firestore';
+// import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
+// import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from 'firebase/firestore';
+import axios from 'axios';
 import { Icon } from 'react-native-elements';
 import { format } from 'date-fns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function AdminCompOff({ navigation }) {
     const [compOffApplications, setCompOffApplications] = useState([]);
@@ -18,20 +20,44 @@ export default function AdminCompOff({ navigation }) {
     const [username, setUsername] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [compOffUnsubscribe, setCompOffUnsubscribe] = useState(null);
+    const [isAdmin, setIsAdmin] = useState(false); 
+    const [users, setUsers] = useState([]); 
+
+    const checkAdminAccess = async () => {
+        try {
+            const role = await AsyncStorage.getItem('role');
+            const userId = await AsyncStorage.getItem('userId');
+            
+            if (!userId) {
+                navigation.replace('Login');
+                return;
+            }
+
+            setIsAdmin(role === 'admin');
+            if (role !== 'admin') {
+                Alert.alert('Access Denied', 'Only admins can access this screen');
+                navigation.replace('Dashboard');
+            }
+        } catch (error) {
+            console.error('Error checking admin status:', error);
+            Alert.alert('Error', 'Failed to verify admin access');
+        }
+    };
 
     useEffect(() => {
+        checkAdminAccess();
         const fetchUserData = async () => {
-            const user = FIREBASE_AUTH.currentUser;
-            if (user) {
-                const userDoc = await getDoc(doc(FIRESTORE_DB, 'users', user.uid));
-                if (userDoc.exists()) {
-                    setUsername(userDoc.data().username);
-                } else {
-                    setUsername('User');
+                try {
+                    setIsLoading(true);
+                    const response = await axios.get('http://localhost:3000/api/admin/users');
+                    console.log('Users fetched:', response.data);
+                    setUsers(response.data);
+                } catch (error) {
+                    console.error('Error fetching users:', error);
+                    Alert.alert('Error', 'Failed to fetch users');
+                } finally {
+                    setIsLoading(false);
                 }
-            } else {
-                setUsername('Guest');
-            }
         };
 
         fetchUserData();
@@ -51,38 +77,32 @@ export default function AdminCompOff({ navigation }) {
     const fetchCompOffApplications = async () => {
         try {
             setIsLoading(true);
-            const q = query(
-                collection(FIRESTORE_DB, 'compOff'),
-                where('status', 'in', ['Pending', 'OnHold', 'Approved'])
+            
+            // fetch comp-off applications 
+            const response = await axios.get('http://localhost:3000/api/compoff/admin');
+            
+            // fetch usernames for all applications
+            const applicationsWithUsernames = await Promise.all(
+                response.data.map(async (app) => {
+                    try {
+                        const userResponse = await axios.get(`http://localhost:3000/api/users/${app.userId}`);
+                        return {
+                            ...app,
+                            username: userResponse.data.username,
+                            requestDate: app.createdAt ? new Date(app.createdAt) : new Date()
+                        };
+                    } catch (error) {
+                        console.error('Error fetching user:', error);
+                        return {
+                            ...app,
+                            username: 'Unknown',
+                            requestDate: app.createdAt ? new Date(app.createdAt) : new Date()
+                        };
+                    }
+                })
             );
-    
-            const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                const applications = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    requestDate: doc.data().createdAt?.toDate() || new Date()
-                }));
-                
-                // Fetch usernames for all applications
-                Promise.all(applications.map(async (app) => {
-                    const userDoc = await getDoc(doc(FIRESTORE_DB, 'users', app.userId));
-                    const userData = userDoc.exists() ? userDoc.data() : { username: 'Unknown' };
-                    return {
-                        ...app,
-                        username: userData.username
-                    };
-                })).then(updatedApplications => {
-                    setCompOffApplications(updatedApplications);
-                });
-            }, (error) => {
-                // Only log error if user is still authenticated
-                if (FIREBASE_AUTH.currentUser) {
-                    console.error('Error fetching comp-off applications:', error);
-                    Alert.alert('Error', 'Failed to fetch applications');
-                }
-            });
-    
-            setCompOffUnsubscribe(() => unsubscribe);
+            
+            setCompOffApplications(applicationsWithUsernames);
         } catch (error) {
             console.error('Error fetching comp-off applications:', error);
             Alert.alert('Error', 'Failed to fetch applications');
@@ -110,9 +130,15 @@ export default function AdminCompOff({ navigation }) {
         
         // Filter by date
         if (filterCriteria.date) {
-            filtered = filtered.filter(item => 
-                format(item.requestDate, 'yyyy-MM-dd').includes(filterCriteria.date)
-            );
+            filtered = filtered.filter(item => {
+                try {
+                    const requestDate = new Date(item.createdAt);
+                    const formattedDate = format(requestDate, 'yyyy-MM-dd');
+                    return formattedDate.includes(filterCriteria.date);
+                } catch (error) {
+                    return false;
+                }
+            });
         }
         
         setFilteredApplications(filtered);
@@ -130,6 +156,7 @@ export default function AdminCompOff({ navigation }) {
         setActiveFilter(false);
     };
 
+    // handleLocalDelete function
     const handleLocalDelete = (applicationId) => {
         Alert.alert(
             "Delete Request",
@@ -143,12 +170,11 @@ export default function AdminCompOff({ navigation }) {
                     text: "Delete",
                     style: "destructive",
                     onPress: () => {
-                        // Remove from both main and filtered lists
                         setCompOffApplications(prev => 
-                            prev.filter(app => app.id !== applicationId)
+                            prev.filter(app => (app._id || app.id) !== applicationId)
                         );
                         setFilteredApplications(prev => 
-                            prev.filter(app => app.id !== applicationId)
+                            prev.filter(app => (app._id || app.id) !== applicationId)
                         );
                     }
                 }
@@ -158,12 +184,14 @@ export default function AdminCompOff({ navigation }) {
 
     const handleUpdateStatus = async (applicationId, newStatus) => {
         try {
-            const compOffRef = doc(FIRESTORE_DB, 'compOff', applicationId);
-            await updateDoc(compOffRef, {
-                status: newStatus,
-                updatedAt: new Date().toISOString()
+            await axios.put(`http://localhost:3000/api/compoff/${applicationId}`, {
+                status: newStatus
             });
+            
             Alert.alert('Success', `Comp-off request ${newStatus.toLowerCase()}`);
+            
+            // Refresh the list
+            fetchCompOffApplications();
         } catch (error) {
             console.error('Error updating comp-off status:', error);
             Alert.alert('Error', 'Failed to update status');
@@ -171,75 +199,86 @@ export default function AdminCompOff({ navigation }) {
     };
 
     const handleLogout = async () => {
-        try {
-            // Clean up the Firestore listener first
-            if (compOffUnsubscribe) {
-                compOffUnsubscribe();
-                setCompOffUnsubscribe(null);
+            try {
+                await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role']);
+                navigation.replace('Login');
+            } catch (error) {
+                console.error('Error logging out:', error);
+                navigation.replace('Login');
             }
-            
-            // Sign out from Firebase Auth
-            await FIREBASE_AUTH.signOut();
-            
-            // Navigate to login
-            navigation.navigate('Login');
-        } catch (error) {
-            console.error('Error logging out:', error);
-            // Even if there's an error, try to navigate to login
-            navigation.navigate('Login');
+        };
+    
+        if (!isAdmin) {
+            return null; 
         }
-    };
 
     const renderCompOffApplication = ({ item }) => {
+    // comp off type display
+    const getCompOffTypeDisplay = () => {
+        if (item.compOffType === 'half') {
+            const period = item.halfDayPeriod === 'morning' ? 'Morning' : 'Afternoon';
+            return `Half day (${period})`;
+        }
+        return 'Full day';
+    };
 
-        // comp off type display
-        const getCompOffTypeDisplay = () => {
-            if (item.compOffType === 'half') {
-                const period = item.halfDayPeriod === 'morning' ? 'Morning' : 'Afternoon';
-                return `Half day (${period})`;
-            }
-            return 'Full day';
-        };
-        
-        return (
-        <View style={styles.card}>
-            <View style={styles.cardHeader}>
-                <Text style={styles.username}>CompOff Request - {item.username}</Text>
-                <TouchableOpacity 
+    // safe date formatting
+    const formatSafeDate = (dateValue) => {
+        try {
+            if (!dateValue) return 'N/A';
+            const date = new Date(dateValue);
+            if (isNaN(date.getTime())) return 'Invalid Date';
+            return format(date, 'dd/MM/yyyy');
+        } catch (error) {
+            console.error('Date formatting error:', error);
+            return 'Invalid Date';
+        }
+    };
+    
+    return (
+            <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                    <Text style={styles.username}>CompOff Request - {item.username || 'Unknown'}</Text>
+                    <TouchableOpacity 
                         style={styles.deleteButton}
-                        onPress={() => handleLocalDelete(item.id)}
-                        >
-                        <Icon name="close" size={20} color="#FF3B30" />
-                </TouchableOpacity>
-            </View>
-            <Text style={styles.date}>User Id - {item.userId}</Text>
-            <Text style={styles.date}>Request Date: {format(item.requestDate, 'dd/MM/yyyy')}</Text>
-            <Text style={styles.dateRange}>
-                Date Range: {format(new Date(item.startDateTime), 'dd/MM/yyyy')} to {format(new Date(item.endDateTime), 'dd/MM/yyyy')}
-            </Text>
-            <Text style={styles.duration}>CompOff Duration: {item.duration} days </Text>
-            <Text style={styles.compOffType}>Type: {getCompOffTypeDisplay()}</Text>
-            <Text style={styles.reason}>Reason: {item.reason}</Text>
-            <Text style={[styles.status, { color: item.status === 'Approved' ? 'green' : item.status === 'Pending' ? 'gray' : 'orange' }]}>
-                Status: {item.status}
-            </Text>
-            {item.status !== 'Approved' && (
-                <View style={styles.buttonRow}>
-                    <TouchableOpacity
-                        style={[styles.button, styles.approveButton]}
-                        onPress={() => handleUpdateStatus(item.id, 'Approved')}
+                        onPress={() => handleLocalDelete(item._id || item.id)}
                     >
-                        <Text style={styles.buttonText}>Approve</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.button, styles.holdButton]}
-                        onPress={() => handleUpdateStatus(item.id, 'OnHold')}>
-                        <Text style={styles.buttonText}>On Hold</Text>
+                        <Icon name="close" size={20} color="#FF3B30" />
                     </TouchableOpacity>
                 </View>
-            )}
-        </View>
-    )};
+                <Text style={styles.date}>User Id - {item.userId}</Text>
+                <Text style={styles.date}>Request Date: {formatSafeDate(item.createdAt)}</Text>
+                <Text style={styles.dateRange}>
+                    Date Range: {formatSafeDate(item.startDateTime)} to {formatSafeDate(item.endDateTime)}
+                </Text>
+                <Text style={styles.duration}>CompOff Duration: {item.duration} days</Text>
+                <Text style={styles.compOffType}>Type: {getCompOffTypeDisplay()}</Text>
+                <Text style={styles.reason}>Reason: {item.reason}</Text>
+                <Text style={[styles.status, { 
+                    color: item.status === 'Approved' ? 'green' : 
+                        item.status === 'Pending' ? 'gray' : 'orange' 
+                }]}>
+                    Status: {item.status}
+                </Text>
+                {item.status !== 'Approved' && (
+                    <View style={styles.buttonRow}>
+                        <TouchableOpacity
+                            style={[styles.button, styles.approveButton]}
+                            onPress={() => handleUpdateStatus(item._id || item.id, 'Approved')}
+                        >
+                            <Text style={styles.buttonText}>Approve</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.button, styles.holdButton]}
+                            onPress={() => handleUpdateStatus(item._id || item.id, 'OnHold')}
+                        >
+                            <Text style={styles.buttonText}>On Hold</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+            </View>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -274,7 +313,7 @@ export default function AdminCompOff({ navigation }) {
             <FlatList
                 data={activeFilter ? filteredApplications : compOffApplications}
                 renderItem={renderCompOffApplication}
-                keyExtractor={item => item.id}
+                keyExtractor={item => item._id || item.id || Math.random().toString()}
                 contentContainerStyle={styles.listContainer}
             />
 

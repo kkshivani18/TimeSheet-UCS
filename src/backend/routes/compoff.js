@@ -33,4 +33,31 @@ router.get('/', async (req, res) => {
     }
 });
 
+// route for admin to get all comp-off requests
+router.get('/admin', async (req, res) => {
+    try {
+        const compOffs = await CompOff.find({
+            status: { $in: ['Pending', 'OnHold', 'Approved'] }
+        }).sort({ createdAt: -1 });
+        res.json(compOffs);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// route to update comp-off status
+router.put('/:id', async (req, res) => {
+    try {
+        const { status } = req.body;
+        const compOff = await CompOff.findByIdAndUpdate(
+            req.params.id,
+            { status, updatedAt: new Date() },
+            { new: true }
+        );
+        res.json(compOff);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
