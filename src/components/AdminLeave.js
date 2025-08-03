@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, FlatList } from 'react-native';
-import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-import { collection, addDoc, serverTimestamp, getDoc, doc, getDocs, updateDoc } from 'firebase/firestore';
+// import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
+// import { collection, addDoc, serverTimestamp, getDoc, doc, getDocs, updateDoc } from 'firebase/firestore';
 import { Dimensions } from 'react-native';
 import { Icon } from 'react-native-elements';
-import {Ionicons, MaterialIcons} from '@expo/vector-icons/Ionicons';
+import {Ionicons} from '@expo/vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -15,31 +17,51 @@ export default function AdminLeave({ navigation }) {
     const [filterCriteria, setFilterCriteria] = useState({ username: '', status: '', date: ''});
     const [activeFilter, setActiveFilter] = useState(false);
     const [username, setUsername] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false); 
+
+    const checkAdminAccess = async () => {
+        try {
+            const role = await AsyncStorage.getItem('role');
+            const userId = await AsyncStorage.getItem('userId');
+            
+            if (!userId) {
+                navigation.replace('Login');
+                return;
+            }
+
+            setIsAdmin(role === 'admin');
+            if (role !== 'admin') {
+                Alert.alert('Access Denied', 'Only admins can access this screen');
+                navigation.replace('Dashboard');
+            }
+        } catch (error) {
+            console.error('Error checking admin status:', error);
+            Alert.alert('Error', 'Failed to verify admin access');
+        }
+    };
 
     useEffect(() => {
-            const fetchUserData = async () => {
-                const user = FIREBASE_AUTH.currentUser;
-                if (user) {
-                    const userDoc = await getDoc(doc(FIRESTORE_DB, 'users', user.uid));
-                    if (userDoc.exists()) {
-                        setUsername(userDoc.data().username);
-                    } else {
-                        setUsername('User');
-                    }
-                } else {
-                    setUsername('Guest');
-                }
-            };
-    
-            fetchUserData();
-        }, []);
+        checkAdminAccess();
+        const fetchUserData = async () => {
+            try {
+                const storedUsername = await AsyncStorage.getItem('username');
+                setUsername(storedUsername || 'Admin');
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+                setUsername('Admin');
+            }
+        };
 
-    // Fetch leave applications from Firestore
+        fetchUserData();
+    }, []);
+
+    // leave applications
     useEffect(() => {
         const fetchLeaves = async () => {
             try {
-                const querySnapshot = await getDocs(collection(FIRESTORE_DB, 'leaveRequests'));
-                setLeaveRequests(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                const response = await axios.get('http://localhost:3000/api/leaves/all');
+                setLeaveRequests(response.data);
             } catch (error) {
                 console.error('Error fetching leave requests:', error);
                 Alert.alert('Error', 'Could not load leave applications');
@@ -48,53 +70,39 @@ export default function AdminLeave({ navigation }) {
         fetchLeaves();
     }, []);
 
-    // Handle status update (Approve, On Hold, Disapprove)
+    // handle status update 
     const handleUpdateStatus = async (id, status) => {
         try {
-            // Fetching the current document to check its status
-            const docRef = doc(FIRESTORE_DB, 'leaveRequests', id);
-            const docSnap = await getDoc(docRef);
-    
-            if (docSnap.exists()) {
-                const currentStatus = docSnap.data().status;
-    
-                // If status is "approved", no further updates allowed
-                if (currentStatus.toLowerCase() === "approved") {
-                    Alert.alert("Action Denied", "Approved requests cannot be modified.");
-                    return;
-                }
-    
-                // Update status if it's not approved
-                await updateDoc(docRef, { status });
-    
+            const response = await axios.put(`http://localhost:3000/api/leaves/${id}/status`, {
+                status: status
+            });
+
+            if (response.data.success) {
                 setLeaveRequests(prev =>
-                    prev.map(req => (req.id === id ? { ...req, status } : req))
+                    prev.map(req => (req._id === id ? { ...req, status } : req))
                 );
-    
                 Alert.alert("Success", `Leave request ${status}`);
             } else {
-                Alert.alert("Error", "Leave request not found.");
+                Alert.alert("Error", response.data.message || "Failed to update status");
             }
         } catch (error) {
             console.error("Error updating leave request status:", error);
             Alert.alert("Error", "Failed to update leave request status");
         }
-    };    
+    }; 
 
     // filter function
     const applyFilter = () => {
         let filtered = [...leaveRequests];
         
-        // Filter by username if provided
+        // filter by username 
         if (filterCriteria.username) {
             filtered = filtered.filter(item => 
                 item.username.toLowerCase().includes(filterCriteria.username.toLowerCase())
             );
         }
         
-        // Filter by status if provided and not 'None'
         if (filterCriteria.status && filterCriteria.status !== 'None') {
-            // Convert status names to match database format
             let statusToFilter = filterCriteria.status;
             
             if(filterCriteria.status === 'Approved') {
@@ -110,7 +118,7 @@ export default function AdminLeave({ navigation }) {
             );
         }
         
-        // Filter by date if provided
+        // filter by date
         if (filterCriteria.date) {
             filtered = filtered.filter(item => 
                 item.startDate.includes(filterCriteria.date) || 
@@ -123,15 +131,14 @@ export default function AdminLeave({ navigation }) {
         setFilterModalVisible(false);
     };
 
-    // Add this function after the applyFilter function
     const resetFilters = () => {
         // Reset filter criteria
         setFilterCriteria({username: '', status: '', date: ''});
         
-        // Reset filtered requests to show all requests
+        // reset filtered requests
         setFilteredRequests([]);
         
-        // Deactivate filter flag
+        // deactivate filter 
         setActiveFilter(false);
     };
 
@@ -162,16 +169,15 @@ export default function AdminLeave({ navigation }) {
         );
     };
 
-    // Handle Logout
-    const handleLogout = () => {
-        FIREBASE_AUTH.signOut()
-            .then(() => {
-                console.log('User logged out');
-                navigation.navigate('Login'); 
-            })
-            .catch((error) => {
+    // handle Logout
+    const handleLogout = async () => {
+            try {
+                await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role']);
+                navigation.replace('Login');
+            } catch (error) {
                 console.error('Error logging out:', error);
-            });
+                navigation.replace('Login');
+            }
     };
 
     const formatDate = (dateString) => {
@@ -215,14 +221,14 @@ export default function AdminLeave({ navigation }) {
             ) : (
                 <FlatList
                     data={activeFilter ? filteredRequests : leaveRequests}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) => item._id}
                     renderItem={({ item }) => (
                         <View style={styles.card}>
                             <View style={styles.cardHeader}>
                                 <Text style={styles.username}>Leave Request - {item.username}</Text>
                                 <TouchableOpacity 
                                     style={styles.deleteButton}
-                                    onPress={() => handleLocalDelete(item.id)}
+                                    onPress={() => handleLocalDelete(item._id)}
                                 >
                                     <Icon name="close" size={20} color="#FF3B30" />
                                 </TouchableOpacity>
@@ -237,19 +243,19 @@ export default function AdminLeave({ navigation }) {
                             <View style={styles.buttonRow}>
                                 <TouchableOpacity
                                     style={styles.approveButton}
-                                    onPress={() => handleUpdateStatus(item.id, 'Approved')}
+                                    onPress={() => handleUpdateStatus(item._id, 'Approved')}
                                 >
                                     <Text style={styles.buttonText}>Approve</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={styles.holdButton}
-                                    onPress={() => handleUpdateStatus(item.id, 'On Hold')}
+                                    onPress={() => handleUpdateStatus(item._id, 'On Hold')}
                                 >
                                     <Text style={styles.buttonText}>On Hold</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={styles.disapproveButton}
-                                    onPress={() => handleUpdateStatus(item.id, 'Disapproved')}
+                                    onPress={() => handleUpdateStatus(item._id, 'Disapproved')}
                                 >
                                     <Text style={styles.buttonText}>Disapprove</Text>
                                 </TouchableOpacity>
@@ -388,6 +394,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
         marginRight: 10,
+        width: '100%',
     },
     cardHeader: {
         flexDirection: 'row',
