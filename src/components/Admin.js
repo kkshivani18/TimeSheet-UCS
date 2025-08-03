@@ -35,12 +35,18 @@ export default function Admin({ navigation }) {
     useEffect(() => {
         checkAdminAccess();
         fetchUsers();
-        fetchPaidHolidays();
     }, []);
 
     useEffect(() => {
+        fetchPaidHolidays();
+    }, [selectedYear])
+
+    useEffect(() => {
         if (selectedUser) {
+            fetchPaidHolidays();
             fetchUserLeaves();
+        } else {
+            setUserLeaves({}); 
         }
     }, [selectedUser, selectedMonth, selectedYear]);
 
@@ -71,7 +77,6 @@ export default function Admin({ navigation }) {
         try {
             setLoading(true);
             const response = await axios.get('http://localhost:3000/api/admin/users');
-            console.log('Users fetched:', response.data);
             setUsers(response.data);
         } catch (error) {
             console.error('Error fetching users:', error);
@@ -100,10 +105,14 @@ export default function Admin({ navigation }) {
 
     // fetch user leaves
     const fetchUserLeaves = async () => {
-        if (!selectedUser) return;
+        if (!selectedUser || !selectedUser.userId) {
+            setUserLeaves({});
+            return;
+        }
+
         try {
+
             const response = await axios.get(`http://localhost:3000/api/leaves?userId=${selectedUser.userId}&year=${selectedYear}&month=${selectedMonth.toString().padStart(2, '0')}`);
-            
             const leavesMap = {};
             response.data.forEach(leave => {
                 const startDate = new Date(leave.startDate);
@@ -117,6 +126,7 @@ export default function Admin({ navigation }) {
             setUserLeaves(leavesMap);
         } catch (error) {
             console.error('Error fetching user leaves:', error);
+            setUserLeaves({});
         }
     };
 
@@ -124,48 +134,39 @@ export default function Admin({ navigation }) {
     const getMarkedDates = () => {
         const markedDates = {};
         
-        // mark holidays
+        // paid holidays
         Object.keys(paidHolidays).forEach(date => {
-            const [year, month] = date.split('-');
-            if (parseInt(year) === selectedYear && parseInt(month) === selectedMonth) {
+            const [year, month, day] = date.split('-');
+            if (parseInt(year) === selectedYear && parseInt(month) === parseInt(selectedMonth)) {
                 markedDates[date] = {
-                    marked: true,
-                    dotColor: '#007AFF',
-                    customStyles: {
-                        container: {
-                            backgroundColor: '#E5F9F6'
-                        },
-                        text: {
-                            color: '#007AFF',
-                            fontWeight: 'bold'
-                        }
-                    }
+                    selected: true,
+                    selectedColor: '#007AFF',
+                    startingDay: true,
+                    endingDay: true,
+                    color: '#007AFF',
+                    textColor: 'white',
                 };
             }
         });
         
-        // mark user leaves
+        // user leaves 
         Object.keys(userLeaves).forEach(date => {
-            const [year, month] = date.split('-');
-            if (parseInt(year) === selectedYear && parseInt(month) === selectedMonth) {
+            const [year, month, day] = date.split('-');
+            if (parseInt(year) === selectedYear && parseInt(month) === parseInt(selectedMonth)) {
                 markedDates[date] = {
-                    ...markedDates[date],
-                    marked: true,
-                    dotColor: markedDates[date] ? '#DC143C' : '#007AFF', 
-                    customStyles: {
-                        container: {
-                            backgroundColor: markedDates[date] ? '#FFE5E5' : '#E5F9F6'
-                        },
-                        text: {
-                            color: markedDates[date] ? '#DC143C' : '#007AFF',
-                            fontWeight: 'bold'
-                        }
-                    }
+                    selected: true,
+                    selectedColor: '#DC143C',
+                    color: '#DC143C',
+                    textColor: 'white',
                 };
             }
         });
-        
         return markedDates;
+    };
+
+    const handleUserChange = (userId) => {
+        const user = users.find(u => u.userId === userId || u.id === userId);
+        setSelectedUser(user);
     };
 
     const handleMonthChange = (itemValue) => {
@@ -223,11 +224,12 @@ export default function Admin({ navigation }) {
                 <Picker
                     selectedValue={selectedUser?.userId}
                     style={styles.picker}
-                    onValueChange={(itemValue) => {
-                        const user = users.find(u => u.userId === itemValue);
-                        setSelectedUser(user);
-                    }}
-            >
+                    onValueChange= {handleUserChange}
+                    // {(itemValue) => {
+                    //     const user = users.find(u => u.userId === itemValue);
+                    //     setSelectedUser(user);
+                    // }}
+                >
                 <Picker.Item label="Select an Employee" value={null} />
                     {users.map(user => (
                         <Picker.Item
@@ -267,30 +269,29 @@ export default function Admin({ navigation }) {
                     </Text>
 
                     <Calendar
-                        key={`${selectedYear}-${selectedMonth}`}
+                        key={`${selectedYear}-${selectedMonth}-${selectedUser?.userId || 'none'}`}
                         style={styles.calendar}
                         hideArrows={true}
-                        markingType={'custom'}
                         markedDates={getMarkedDates()}
                         theme={{
-                        calendarBackground: 'white',
-                        textSectionTitleColor: '#b6c1cd',
-                        selectedDayBackgroundColor: '#00adf5',
-                        selectedDayTextColor: '#ffffff',
-                        todayTextColor: '#00adf5',
-                        dayTextColor: '#2d4150',
-                        textDisabledColor: '#d9e1e8',
-                        dotColor: '#00adf5',
-                        selectedDotColor: '#ffffff',
-                        arrowColor: 'orange',
-                        monthTextColor: 'black',
-                        indicatorColor: 'black',
-                        textDayFontWeight: '300',
-                        textMonthFontWeight: 'bold',
-                        textDayHeaderFontWeight: '300',
-                        textDayFontSize: 16,
-                        textMonthFontSize: 16,
-                        textDayHeaderFontSize: 14,
+                            calendarBackground: 'white',
+                            textSectionTitleColor: '#b6c1cd',
+                            selectedDayBackgroundColor: '#00adf5',
+                            selectedDayTextColor: '#ffffff',
+                            todayTextColor: '#00adf5',
+                            dayTextColor: '#2d4150',
+                            textDisabledColor: '#d9e1e8',
+                            dotColor: '#00adf5',
+                            selectedDotColor: '#ffffff',
+                            arrowColor: 'orange',
+                            monthTextColor: 'black',
+                            indicatorColor: 'black',
+                            textDayFontWeight: '300',
+                            textMonthFontWeight: 'bold',
+                            textDayHeaderFontWeight: '300',
+                            textDayFontSize: 16,
+                            textMonthFontSize: 16,
+                            textDayHeaderFontSize: 14,
                         }}
                         current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`}
                         onDayPress={(day) => viewUserTasks(day.dateString)}
