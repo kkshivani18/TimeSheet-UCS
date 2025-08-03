@@ -68,25 +68,41 @@ router.get('/authenticate', authMiddleware, async(req, res) => {
 
 
 // for Dashboard.js
-
-router.get('/:id', async(req, res) => {
-    try {
-        const user = await User.findOne({ userId: req.params.id });
-        if (!user) return res.status(404).json({ message: 'User not found' });
-        res.json({ username: user.username, email: user.email, role: user.role });
-      } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-})
+// router.get('/:id', async(req, res) => {
+//     try {
+//         const user = await User.findOne({ userId: req.params.id });
+//         if (!user) return res.status(404).json({ message: 'User not found' });
+//         res.json({ username: user.username, email: user.email, role: user.role });
+//       } catch (err) {
+//         res.status(500).json({ message: err.message });
+//     }
+// })
 
 router.get('/:userId', async (req, res) => {
     try {
-        const user = await User.findOne({ userId: req.params.userId });
+        console.log('Looking for user with userId:', req.params.userId);
+        
+        // find user by userId 
+        let user = await User.findOne({ userId: req.params.userId });
+        
+        // try by _id
         if (!user) {
+            user = await User.findById(req.params.userId);
+        }
+        
+        if (!user) {
+            console.log('User not found with userId:', req.params.userId);
             return res.status(404).json({ error: 'User not found' });
         }
-        res.json({ username: user.username, email: user.email });
+        
+        console.log('User found:', user.username);
+        res.json({ 
+            username: user.username, 
+            email: user.email,
+            userId: user.userId 
+        });
     } catch (err) {
+        console.error('Error fetching user:', err);
         res.status(500).json({ error: err.message });
     }
 });

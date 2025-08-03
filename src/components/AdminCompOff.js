@@ -11,11 +11,7 @@ export default function AdminCompOff({ navigation }) {
     const [compOffApplications, setCompOffApplications] = useState([]);
     const [filteredApplications, setFilteredApplications] = useState([]);
     const [filterModalVisible, setFilterModalVisible] = useState(false);
-    const [filterCriteria, setFilterCriteria] = useState(({
-        username: '', 
-        status: '', 
-        date: '' 
-    }));
+    const [filterCriteria, setFilterCriteria] = useState(({username: '', status: '',  date: '' }));
     const [activeFilter, setActiveFilter] = useState(false);
     const [username, setUsername] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -50,7 +46,6 @@ export default function AdminCompOff({ navigation }) {
                 try {
                     setIsLoading(true);
                     const response = await axios.get('http://localhost:3000/api/admin/users');
-                    console.log('Users fetched:', response.data);
                     setUsers(response.data);
                 } catch (error) {
                     console.error('Error fetching users:', error);
@@ -85,7 +80,7 @@ export default function AdminCompOff({ navigation }) {
             const applicationsWithUsernames = await Promise.all(
                 response.data.map(async (app) => {
                     try {
-                        const userResponse = await axios.get(`http://localhost:3000/api/users/${app.userId}`);
+                        const userResponse = await axios.get(`http://localhost:3000/api/user/${app.userId}`);
                         return {
                             ...app,
                             username: userResponse.data.username,
@@ -114,21 +109,21 @@ export default function AdminCompOff({ navigation }) {
     const applyFilter = () => {
         let filtered = [...compOffApplications];
         
-        // Filter by username
+        // filter by username
         if (filterCriteria.username) {
             filtered = filtered.filter(item => 
                 item.username.toLowerCase().includes(filterCriteria.username.toLowerCase())
             );
         }
         
-        // Filter by status
+        // filter by status
         if (filterCriteria.status && filterCriteria.status !== 'None') {
             filtered = filtered.filter(item => 
                 item.status.toLowerCase() === filterCriteria.status.toLowerCase()
             );
         }
         
-        // Filter by date
+        // filter by date
         if (filterCriteria.date) {
             filtered = filtered.filter(item => {
                 try {
@@ -190,7 +185,6 @@ export default function AdminCompOff({ navigation }) {
             
             Alert.alert('Success', `Comp-off request ${newStatus.toLowerCase()}`);
             
-            // Refresh the list
             fetchCompOffApplications();
         } catch (error) {
             console.error('Error updating comp-off status:', error);
