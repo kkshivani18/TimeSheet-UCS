@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Attendance = require('../models/Attendance');
 
-// Create or update attendance for a user on date
+// create or update attendance for a user on date
 router.post('/', async (req, res) => {
     console.log('Received attendance POST:', req.body);
     try {
@@ -60,6 +60,49 @@ router.get('/user/:userId/range', async (req, res) => {
         }).sort({ date: 1 });
         
         res.json(records);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// get pending reg reqs
+router.get('/regularization/pending', async (req, res) => {
+    try {
+        const pendingRequests = await Attendance.find({
+            regularization_requested: true,
+            regularization_status: 'Pending'
+        }).populate('userId', 'username email');
+        
+        res.json(pendingRequests);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// update reg req status
+router.put('/regularization/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, checkInTime, checkOutTime, workedHours, totalWorkedMinutes } = req.body;
+        
+        const updateData = {
+            regularization_status: status
+        };
+
+        if (status === 'Approved') {
+            updateData.checkInTime = checkInTime;
+            updateData.checkOutTime = checkOutTime;
+            updateData.workedHours = workedHours;
+            updateData.totalWorkedMinutes = totalWorkedMinutes;
+        }
+        
+        const updatedRecord = await Attendance.findByIdAndUpdate(
+            id,
+            updateData,
+            { new: true }
+        );
+        
+        res.json(updatedRecord);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

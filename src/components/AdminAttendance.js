@@ -8,6 +8,8 @@ import { Picker } from '@react-native-picker/picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { parse, isValid } from 'date-fns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 export default function AdminAttendance({ navigation }) {
     const [isAdmin, setIsAdmin] = useState(false);
@@ -19,6 +21,7 @@ export default function AdminAttendance({ navigation }) {
     // Week selection for attendance records
     const currentDate = new Date();
     const [selectedWeek, setSelectedWeek] = useState(currentDate);
+    const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
     const [weeklyAttendance, setWeeklyAttendance] = useState([]);
     const [paidHolidays, setPaidHolidays] = useState({});
 
@@ -29,8 +32,12 @@ export default function AdminAttendance({ navigation }) {
     useEffect(() => {
         checkAdminAccess();
         fetchUsers();
-        fetchPaidHolidays();
+        fetchPendingRequests();
     }, []);
+
+    useEffect(() => {
+        fetchPaidHolidays();
+    }, [selectedYear]);
 
     useEffect(() => {
         if (selectedUser) {
@@ -60,20 +67,17 @@ export default function AdminAttendance({ navigation }) {
         }
     };
 
-    // Fetch all users
+    // fetch all users
     const fetchUsers = async () => {
         try {
-            const usersQuery = query(
-                collection(FIRESTORE_DB, 'users'),
-                where('role', '==', 'user')
-            );
-            
-            const querySnapshot = await getDocs(usersQuery);
-            const usersList = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
+            const response = await axios.get('http://localhost:3000/api/admin/users');
+            const usersList = response.data.map(user => ({
+                id: user._id || user.userId,
+                userId: user.userId || user._id,
+                username: user.username || 'User',
+                email: user.email,
+                ...user
             }));
-            
             setUsers(usersList);
         } catch (error) {
             console.error('Error fetching users:', error);
@@ -81,27 +85,21 @@ export default function AdminAttendance({ navigation }) {
         }
     };
 
-    // Function to fetch attendance for a specific date
+    // handle user selection
+    const handleUserChange = (userId) => {
+        console.log('Selected userId:', userId);
+        const user = users.find(u => u.userId === userId || u.id === userId);
+        console.log('Found user:', user);
+        setSelectedUser(user);
+    };
+
+    // fetch attendance for a specific date
     const fetchAttendanceForDate = async (formattedDate) => {
         if (!selectedUser) return null;
 
         try {
-            // Format the date to match the document ID format
-            const docId = `${selectedUser.id}_${formattedDate.replace(/\//g, '-')}`;
-
-            // Query the attendance collection
-            const q = query(
-                collection(FIRESTORE_DB, 'attendance'),
-                where('docId', '==', docId)
-            );
-            
-            const querySnapshot = await getDocs(q);
-            
-            if (!querySnapshot.empty) {
-                return querySnapshot.docs[0].data();
-            } else {
-                return null;
-            }
+            const response = await axios.get(`http://localhost:3000/api/attendance/user/${selectedUser.id}/date/${formattedDate}`);
+            return response.data;
         } catch (error) {
             console.error('Error fetching attendance record:', error);
             return null;
@@ -124,98 +122,85 @@ export default function AdminAttendance({ navigation }) {
         return `${hours}h ${minutes}m`;
     };
 
-    // Function to fetch paid holidays
+    // fetch paid holidays
     const fetchPaidHolidays = async () => {
         try {
-            const currentYear = new Date().getFullYear();
-            const holidaysQuery = query(
-                collection(FIRESTORE_DB, 'paidHolidays'),
-                where('year', '==', currentYear)
-            );
-            const querySnapshot = await getDocs(holidaysQuery);
+            const response = await axios.get(`http://localhost:3000/api/holidays/${selectedYear}`);
+            
             const holidaysMap = {};
-            querySnapshot.docs.forEach(doc => {
-                const holiday = doc.data();
-                holidaysMap[holiday.date] = holiday.description;
+            response.data.forEach(holiday => {
+                const [day, month] = holiday.date.split('-');
+                const holidayDateFormatted = `${selectedYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                holidaysMap[holidayDateFormatted] = holiday.description;
             });
             setPaidHolidays(holidaysMap);
         } catch (error) {
-            console.error('Error fetching paid holidays:', error);
+            console.error('Error fetching holidays:', error);
         }
     };
 
-    // Function to fetch weekly attendance records
+    // fetch weekly attendance records
     const fetchWeeklyAttendance = async () => {
         if (!selectedUser) return;
 
-        setIsLoading(true);
         try {
-            // Ensure selectedWeek is a valid Date object
-            const weekDate = new Date(selectedWeek);
-
-            // Create date range for the selected week (Sunday to Saturday)
-            const start = startOfWeek(weekDate, { weekStartsOn: 0 });
-            const end = endOfWeek(weekDate, { weekStartsOn: 0 });
-
-            // Get all days in the week
+            setIsLoading(true);
+            const start = startOfWeek(selectedWeek, { weekStartsOn: 1 });
+            const end = endOfWeek(selectedWeek, { weekStartsOn: 1 });
             const daysInWeek = eachDayOfInterval({ start, end });
 
-            // Initialize attendance data with empty values for all days
+            console.log('Fetching attendance for user:', selectedUser);
+            console.log('Date range:', format(start, 'yyyy-MM-dd'), 'to', format(end, 'yyyy-MM-dd'));
+
+            const response = await axios.get(`http://localhost:3000/api/attendance/user/${selectedUser.userId}/range`, {
+                params: {
+                    startDate: format(start, 'yyyy-MM-dd'),
+                    endDate: format(end, 'yyyy-MM-dd')
+                },
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
+
+            console.log('Attendance API response:', response.data);
+            const attendanceRecords = response.data || [];
+            
+            // initial attendance structure - matching your renderAttendanceRow expectations
             const initialAttendance = daysInWeek.map(day => {
-                const formattedDate = format(day, 'dd-MM');
+                const dateKey = format(day, 'yyyy-MM-dd');
+                const dayName = format(day, 'EEEE');
+                const isWeekend = dayName === 'Saturday' || dayName === 'Sunday';
+                const holidayDescription = paidHolidays[dateKey];
+
                 return {
-                    date: format(day, 'yyyy-MM-dd'),
-                    formattedDate: formattedDate,
-                    dayOfWeek: format(day, 'EEE'),
+                    date: dateKey,
+                    day: dayName,
+                    dayOfWeek: format(day, 'EEE'), // This matches your renderAttendanceRow
+                    formattedDate: format(day, 'dd-MM'), // This matches your renderAttendanceRow
                     checkInTime: null,
                     checkOutTime: null,
-                    workedHours: '-',
+                    workedHours: null,
                     totalWorkedMinutes: 0,
-                    isHoliday: !!paidHolidays[formattedDate],
-                    holidayDescription: paidHolidays[formattedDate] || null
+                    isWeekend,
+                    isHoliday: !!holidayDescription,
+                    holidayDescription
                 };
             });
 
-            // Process each day in the week
-            const attendanceData = {};
-            for (const day of daysInWeek) {
-                try {
-                    // Format the date to match what's stored in Firestore
-                    const dateFormatted = day.toLocaleDateString();
-
-                    // Fetch attendance for this specific day
-                    const attendanceRecord = await fetchAttendanceForDate(dateFormatted);
-
-                    if (attendanceRecord) {
-                        // If record exists, add it to our data
-                        const dateKey = format(day, 'yyyy-MM-dd');
-                        attendanceData[dateKey] = {
-                            checkInTime: attendanceRecord.checkInTime,
-                            checkOutTime: attendanceRecord.checkOutTime,
-                            workedHours: attendanceRecord.workedHours || '-',
-                            totalWorkedMinutes: attendanceRecord.totalWorkedMinutes || 0
-                        };
-                    }
-                } catch (error) {
-                    console.error(`Error fetching attendance for ${format(day, 'yyyy-MM-dd')}:`, error);
-                }
-            }
-
-            // Update the initialAttendance array with actual data
+            // map attendance records to the structure
             const updatedAttendance = initialAttendance.map(day => {
-                const dateKey = day.date;
-                if (attendanceData[dateKey]) {
+                const record = attendanceRecords.find(r => r.date === day.date);
+                if (record) {
                     return {
                         ...day,
-                        checkInTime: attendanceData[dateKey].checkInTime,
-                        checkOutTime: attendanceData[dateKey].checkOutTime,
-                        workedHours: attendanceData[dateKey].workedHours,
-                        totalWorkedMinutes: attendanceData[dateKey].totalWorkedMinutes
+                        checkInTime: record.checkInTime,
+                        checkOutTime: record.checkOutTime,
+                        workedHours: record.workedHours,
+                        totalWorkedMinutes: record.totalWorkedMinutes || 0
                     };
                 }
                 return day;
             });
 
+            console.log('Final attendance data:', updatedAttendance);
             setWeeklyAttendance(updatedAttendance);
         } catch (error) {
             console.error('Error fetching weekly attendance:', error);
@@ -225,31 +210,32 @@ export default function AdminAttendance({ navigation }) {
         }
     };
 
-    // Function to navigate to previous week
+    // navigate to previous week
     const goToPreviousWeek = () => {
         setSelectedWeek(prevWeek => subWeeks(prevWeek, 1));
     };
 
-    // Function to navigate to next week
+    // navigate to next week
     const goToNextWeek = () => {
         setSelectedWeek(prevWeek => addWeeks(prevWeek, 1));
     };
 
-    // Format date-time for display
+    // format date-time for display
     const formatDateTime = (dateTimeString) => {
-        if (!dateTimeString) return '-';
-        const date = new Date(dateTimeString);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (!dateTimeString || dateTimeString === '-' || dateTimeString === null) return '-';
+        
+        try {
+            // Handle both ISO strings and timestamps
+            const date = new Date(dateTimeString);
+            if (isNaN(date.getTime())) return '-';
+            return format(date, 'HH:mm');
+        } catch (error) {
+            console.error('Error formatting date:', error, 'Input:', dateTimeString);
+            return '-';
+        }
     };
 
-    // Handle user selection
-    const handleUserChange = (userId) => {
-        const user = users.find(u => u.id === userId);
-
-        setSelectedUser(user);
-    };
-
-    // Handle logout
+    // handle logout
     const handleLogout = async () => {
         try {
             await AsyncStorage.multiRemove(['token', 'userId', 'username', 'role']);
@@ -417,7 +403,7 @@ export default function AdminAttendance({ navigation }) {
         }
     };
 
-    // Modify the renderAttendanceRow function to include holiday styling
+    // renderAttendanceRow func to include holiday styling
         const renderAttendanceRow = ({ item, index }) => {
         const isWeekend = item.dayOfWeek === 'Sun' || item.dayOfWeek === 'Sat';
         const isHoliday = item.isHoliday;
@@ -459,7 +445,7 @@ export default function AdminAttendance({ navigation }) {
             checkOutDisplay = '-';
         }
 
-        // Determine what to display for worked hours
+        // worked hours
         let hoursDisplay;
         if (hasCheckedIn && hasCheckedOut) {
             // hoursDisplay = item.workedHours !== 'N/A' ? item.workedHours : '-';
@@ -472,7 +458,7 @@ export default function AdminAttendance({ navigation }) {
             hoursDisplay = '-';
         }
 
-        // Determine row style based on various conditions
+        // row style based on various conditions
         let rowStyle = [styles.tableRow];
 
         // background colors based on priority
@@ -496,7 +482,7 @@ export default function AdminAttendance({ navigation }) {
             rowStyle.push(styles.oddRow);
         }
 
-        // Determine text style based on the content
+        // text style based on the content
         const getTextStyle = (content) => {
             if (content === 'H' && (isHoliday || isWeekend)) {
                 return styles.weekendText;
@@ -527,65 +513,69 @@ export default function AdminAttendance({ navigation }) {
     useEffect(() => {
         const getRequests = async () => {
             setLoadingRequests(true);
-            const q = query(
-                collection(FIRESTORE_DB, 'attendance'),
-                where('regularization_requested', '==', true),
-                where('regularization_status', '==', 'Pending')
-            );
-            const querySnapshot = await getDocs(q);
-            setPendingRequests(querySnapshot.docs.map(docSnap => ({
-                id: docSnap.id,
-                ...docSnap.data()
-            })));
-            setLoadingRequests(false);
+            try {
+                const response = await axios.get('http://localhost:3000/api/attendance/regularization/pending');
+                setPendingRequests(response.data);
+            } catch (error) {
+                console.error('Error fetching regularization requests:', error);
+            } finally {
+                setLoadingRequests(false);
+            }
         };
         getRequests();
     }, []);
 
     const getUsernameById = (userId) => {
-        const user = users.find(u => u.id === userId);
-        return user ? user.username : userId;
+        const user = users.find(u => u.userId === userId || u._id === userId || u.id === userId);
+        return user ? user.username : 'Unknown User';
+    };
+
+    // fetch pending reg reqs
+    const fetchPendingRequests = async () => {
+        try {
+            setLoadingRequests(true);
+            const response = await axios.get('http://localhost:3000/api/attendance/regularization/pending');
+            setPendingRequests(response.data);
+        } catch (error) {
+            console.error('Error fetching regularization requests:', error);
+            setPendingRequests([]);
+        } finally {
+            setLoadingRequests(false);
+        }
     };
 
     const approveRegularizationRequest = async (request) => {
         try {
-            // parsing regularization_date which is in MM/DD/YYYY format
-            const dateString = request.regularization_date;
+            // Parse the regularization date properly
+            const [month, day, year] = request.regularization_date.split('/');
+            const requestDate = new Date(year, month - 1, day);
             
-            // Parse the date string (MM/DD/YYYY format)
-            const dateParts = dateString.split('/');
-            if (dateParts.length !== 3) {
-                throw new Error('Invalid date format');
-            }
+            // Create proper ISO strings
+            const checkInDate = new Date(requestDate);
+            checkInDate.setHours(9, 0, 0, 0);
             
-            const month = parseInt(dateParts[0]) - 1; // 0-indexed
-            const day = parseInt(dateParts[1]);
-            const year = parseInt(dateParts[2]);
+            const checkOutDate = new Date(requestDate);
+            checkOutDate.setHours(18, 0, 0, 0);
             
-            // Create Date objects for check-in and check-out times
-            const checkInDate = new Date(year, month, day, 9, 0, 0); // 9:00 AM
-            const checkOutDate = new Date(year, month, day, 18, 0, 0); // 6:00 PM
-            
-            // Convert to ISO strings
-            const checkInTime = checkInDate.toISOString();
-            const checkOutTime = checkOutDate.toISOString();
-    
-            await updateDoc(doc(FIRESTORE_DB, 'attendance', request.id), {
-                checkInTime,
-                checkOutTime,
+            await axios.put(`http://localhost:3000/api/attendance/regularization/${request._id}`, {
+                status: 'Approved',
+                checkInTime: checkInDate.toISOString(),
+                checkOutTime: checkOutDate.toISOString(),
                 workedHours: 9,
-                totalWorkedMinutes: 540,
-                regularization_status: 'Approved'
+                totalWorkedMinutes: 540
             });
-            Alert.alert('Success', 'Regularization approved and attendance updated.');
-    
-            // Refresh the list
-            setPendingRequests(prev => prev.filter(r => r.id !== request.id));
+            
+            Alert.alert('Success', 'Regularization approved.');
+            fetchPendingRequests();
+            // Refresh the attendance data
+            if (selectedUser) {
+                fetchWeeklyAttendance();
+            }
         } catch (error) {
             Alert.alert('Error', 'Failed to approve regularization.');
             console.error(error);
         }
-    };
+    };  
 
     if (!isAdmin) {
         return null;
@@ -622,14 +612,14 @@ export default function AdminAttendance({ navigation }) {
 
                 {/* regularize attendance requests */}
                 <View style={styles.regularizationSection}>
-                    <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Pending Regularization Requests</Text>
+                    <Text style={[styles.regularizationTitle, { marginBottom: 10 }]}>Pending Regularization Requests</Text>
                     {loadingRequests ? (
                         <ActivityIndicator size="small" color="#007AFF" />
                     ) : pendingRequests.length === 0 ? (
                         <Text style={{ color: '#888', fontStyle: 'italic', marginVertical: 10 }}>No pending requests.</Text>
                     ) : (
                         pendingRequests.map((req) => (
-                            <View key={req.id} style={styles.regularizationCard}>
+                            <View key={req._id} style={styles.regularizationCard}>
                                 <View style={{ marginBottom: 6 }}>
                                     <Text>
                                         <Text style={{ fontWeight: 'bold' }}>User: </Text>
@@ -944,6 +934,12 @@ const styles = StyleSheet.create({
         elevation: 2,
         maxWidth: 500,
         alignSelf: 'center',
+    },
+    regularizationTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 10,
     },
     regularizationCard: {
         borderWidth: 1,

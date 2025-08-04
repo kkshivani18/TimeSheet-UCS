@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, FlatList } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, FlatList, Dimensions} from 'react-native';
 // import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
 // import { collection, addDoc, serverTimestamp, getDoc, doc, getDocs, updateDoc } from 'firebase/firestore';
-import { Dimensions } from 'react-native';
 import { Icon } from 'react-native-elements';
 import {Ionicons} from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const screenWidth = Dimensions.get('window').width;
+// const screenWidth = Dimensions.get('window').width;
 
 export default function AdminLeave({ navigation }) { 
     const [leaveRequests, setLeaveRequests] = useState([]);
@@ -222,6 +221,8 @@ export default function AdminLeave({ navigation }) {
                 <FlatList
                     data={activeFilter ? filteredRequests : leaveRequests}
                     keyExtractor={(item) => item._id}
+                    contentContainerStyle={{ paddingHorizontal: 0}}
+                    showsVerticalScrollIndicator={true}
                     renderItem={({ item }) => (
                         <View style={styles.card}>
                             <View style={styles.cardHeader}>
@@ -360,7 +361,7 @@ const styles = StyleSheet.create({
         flex: 1,
         marginTop: 5,
         alignItems: 'center',
-        padding: 15,
+        padding: 10,
         backgroundColor: '#f0f0f0',
     },
     header: {
@@ -393,7 +394,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
-        marginRight: 10,
+        // marginRight: 10,
         width: '100%',
     },
     cardHeader: {
@@ -503,7 +504,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
     modalContent: {
-        width: screenWidth - 40,
+        // width: screenWidth - 40,
+        width: '90%',
         backgroundColor: 'white',
         borderRadius: 10,
         padding: 20,

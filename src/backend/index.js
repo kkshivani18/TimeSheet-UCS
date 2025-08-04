@@ -111,8 +111,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const userRoutes = require('./routes/user');
-const holidaysRouter = require('./routes/holidays');
-const leavesRouter = require('./routes/leaves')
+const holidaysRoutes = require('./routes/holidays');
+const leavesRoutes = require('./routes/leaves')
 const compoffRoutes = require('./routes/compoff')
 const attendanceRoutes = require('./routes/attendance');
 const tasksRoutes = require('./routes/tasks');
@@ -140,10 +140,10 @@ mongoose.connect(process.env.MONGO_URI, {
 app.use('/api/user', userRoutes);
 
 // mount holidays routes
-app.use('/api/holidays', holidaysRouter);
+app.use('/api/holidays', holidaysRoutes);
 
 // mount leaves route
-app.use('/api/leaves', leavesRouter);
+app.use('/api/leaves', leavesRoutes);
 
 // mount compoff route
 app.use('/api/compoff', compoffRoutes);

@@ -35,4 +35,15 @@ router.get('/:year', async (req, res) => {
   }
 });
 
+// upload holidays
+router.post('/upload', async (req, res) => {
+  try {
+    const { holidays } = req.body;
+    const result = await Holiday.insertMany(holidays);
+    res.json({ message: `${result.length} holidays uploaded successfully` });
+  } catch (err) {
+    res.status(500).json({ error : err.message });
+  }
+})
+
 module.exports = router;
