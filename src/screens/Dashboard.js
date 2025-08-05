@@ -44,7 +44,6 @@ export default function Dashboard({ navigation }) {
     const [attendanceData, setAttendanceData] = useState({});
     const [user, setUser] = useState(null);
 
-    // const user = FIREBASE_AUTH.currentUser;
     useEffect(() => {
         const fetchUserData = async () => {
             try {
@@ -331,8 +330,10 @@ export default function Dashboard({ navigation }) {
                 return;
             }
 
-            // const user = FIREBASE_AUTH.currentUser;
-            if (!user) {
+            const userId = await AsyncStorage.getItem('userId');
+            const userEmail = await AsyncStorage.getItem('email');
+            const username = await AsyncStorage.getItem('username');
+            if (!userId) {
                 Alert.alert('Error', 'No user logged in');
                 return;
             }
@@ -341,8 +342,8 @@ export default function Dashboard({ navigation }) {
             const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
 
             const newTask = {
-                userId: user.uid,
-                email: user.email,
+                userId: userId,
+                email: userEmail,
                 username: username,
                 date: new Date(selectedDate).toISOString(),
                 heading: taskHeading.trim(),
@@ -353,13 +354,16 @@ export default function Dashboard({ navigation }) {
                 updatedAt: new Date().toISOString()
             };
 
-            // Add task to Firestore
-            const docRef = await addDoc(collection(FIRESTORE_DB, 'tasks'), newTask);
+            // add task to mongodb
+            const response = await axios.post('http://localhost:3000/api/tasks/user/create', newTask, {
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+            });
 
-            // Show success message
+            setTasks([...tasks, response.data]);
             Alert.alert('Success', 'Task added successfully');
+            setModalVisible(false);
 
-            // Navigate to Tasks screen with both date and new task
+            // navigate to Tasks screen with both date and new task
             navigation.navigate('Tasks', {
                 date: selectedDate,
                 newTask: { id: docRef.id, ...newTask }

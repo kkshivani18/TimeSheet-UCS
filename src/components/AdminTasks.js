@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Modal, Alert, Platform } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Picker } from '@react-native-picker/picker';
-// import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-// import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { create } from 'react-test-renderer';
 
 const months = [
     { label: 'January', value: 1 },
@@ -32,24 +33,43 @@ export default function AdminTasks({ navigation }) {
     const [taskHeading, setTaskHeading] = useState('');
     const [taskDescription, setTaskDescription] = useState('');
     const [username, setUsername] = useState('');
+    const [isAdmin, setIsAdmin] = useState(false);
 
-    // Date and time picker states
+    // date and time picker states
     const [deadlineDate, setDeadlineDate] = useState(new Date());
     const [showPicker, setShowPicker] = useState(false);
     const [pickerMode, setPickerMode] = useState('date');
 
+    const checkAdminAccess = async () => {
+        try {
+            const role = await AsyncStorage.getItem('role');
+            const userId = await AsyncStorage.getItem('userId');
+            
+            if (!userId) {
+                navigation.replace('Login');
+                return;
+            }
+
+            setIsAdmin(role === 'admin');
+            if (role !== 'admin') {
+                Alert.alert('Access Denied', 'Only admins can access this screen');
+                navigation.replace('Dashboard');
+            }
+        } catch (error) {
+            console.error('Error checking admin status:', error);
+            Alert.alert('Error', 'Failed to verify admin access');
+        }
+    };
+
     useEffect(() => {
+        checkAdminAccess();
         const fetchUserData = async () => {
-            const user = FIREBASE_AUTH.currentUser;
-            if (user) {
-                const userDoc = await getDoc(doc(FIRESTORE_DB, 'users', user.uid));
-                if (userDoc.exists()) {
-                    setUsername(userDoc.data().username);
-                } else {
-                    setUsername('User');
-                }
-            } else {
-                setUsername('Guest');
+            try {
+                const storedUsername = await AsyncStorage.getItem('username');
+                setUsername(storedUsername || 'Admin');
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+                setUsername('Admin');
             }
         };
 
@@ -68,15 +88,14 @@ export default function AdminTasks({ navigation }) {
         const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
         const markedDates = {};
         for (let day = 1; day <= daysInMonth; day++) {
-            // Safely create date string with error handling
             let date;
             try {
                 date = new Date(selectedYear, selectedMonth - 1, day).toISOString().split('T')[0];
             } catch (error) {
                 console.error('Error creating date string:', error);
-                date = ''; // Provide a default value
+                date = ''; 
             }
-            markedDates[date] = { marked: false }; // have to customize more
+            markedDates[date] = { marked: false }; 
         }
         return markedDates;
     };
@@ -88,7 +107,7 @@ export default function AdminTasks({ navigation }) {
 
     const handleSaveTask = async () => {
         try {
-            // Form validation
+            // form validation
             if (!taskHeading.trim()) {
                 Alert.alert('error', 'Please enter a task heading');
                 return;
@@ -98,18 +117,21 @@ export default function AdminTasks({ navigation }) {
                 return;
             }
 
-            const user = FIREBASE_AUTH.currentUser;
-            if (!user) {
+            const userId = await AsyncStorage.getItem('userId');
+            const userEmail = await AsyncStorage.getItem('email');
+            const username = await AsyncStorage.getItem('username');
+
+            if (!userId) {
                 Alert.alert('error', 'No user logged in');
                 return;
             }
 
-            // Format the deadline date using date-fns
+            // format deadline date using date-fns
             const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
 
             const newTask = {
-                userId: user.uid,
-                email: user.email,
+                userId: userId,
+                email: userEmail,
                 username: username,
                 date: new Date(selectedDate).toISOString(),
                 heading: taskHeading.trim(),
@@ -117,22 +139,25 @@ export default function AdminTasks({ navigation }) {
                 deadline: formattedDeadline,
                 completed: false,
                 createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                createdBy: "admin"
             };
 
-            // Add task to Firestore
-            const docRef = await addDoc(collection(FIRESTORE_DB, 'tasks'), newTask);
-
-            // Show success message
-            Alert.alert('Success', 'Task added successfully');
-
-            // Navigate to Tasks screen with both date and new task
-            navigation.navigate('Tasks', {
-                date: selectedDate,
-                newTask: { id: docRef.id, ...newTask }
+            // add task to mongodb
+            const response = await axios.post('http/localhost:3000/api/tasks/admin/create', newTask, {
+                headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
 
-            // Reset form and close modal
+            // show success message
+            Alert.alert('Success', 'Task added successfully');
+
+            // navigate to Tasks screen with both date and new task
+            navigation.navigate('Tasks', {
+                date: selectedDate,
+                newTask: { id: response.data._id, ...response.data }
+            });
+
+            // reset form and close modal
             setTaskHeading('');
             setTaskDescription('');
             setDeadlineDate(new Date());
@@ -304,9 +329,9 @@ export default function AdminTasks({ navigation }) {
                                 <TouchableOpacity
                                     style={styles.dateTimeButton}
                                     onPress={() => {
-                                        // Ensure any existing picker is closed first
+                                        // existing picker is closed first
                                         setShowPicker(false);
-                                        // Use setTimeout to ensure the previous picker is fully closed
+                                        // using setTimeout to ensure the previous picker is fully closed
                                         setTimeout(() => {
                                             setPickerMode('date');
                                             setShowPicker(true);
@@ -320,9 +345,9 @@ export default function AdminTasks({ navigation }) {
                                 <TouchableOpacity
                                     style={styles.dateTimeButton}
                                     onPress={() => {
-                                        // Ensure any existing picker is closed first
+                                        // existing picker is closed first
                                         setShowPicker(false);
-                                        // Use setTimeout to ensure the previous picker is fully closed
+                                        // using setTimeout to ensure the previous picker is fully closed
                                         setTimeout(() => {
                                             setPickerMode('time');
                                             setShowPicker(true);
@@ -348,12 +373,12 @@ export default function AdminTasks({ navigation }) {
                                     is24Hour={false}
                                     display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                                     onChange={(_, selectedDate) => {
-                                        // Always hide the picker on Android after selection
+                                        // always hide the picker on Android after selection
                                         if (Platform.OS === 'android') {
                                             setShowPicker(false);
                                         }
 
-                                        // Update the date if a selection was made
+                                        // update the date if a selection was made
                                         if (selectedDate) {
                                             // For iOS, if in date mode, switch to time mode after date selection
                                             if (Platform.OS === 'ios' && pickerMode === 'date') {

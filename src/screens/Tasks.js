@@ -268,14 +268,12 @@ export default function Tasks({ route, navigation }) {
             }
 
             const userId = await AsyncStorage.getItem('userId');
+            let username = user?.username|| 'User';
+            let userEmail = user?.email || 'user@example.com';
             if (!userId) {
                 Alert.alert('Error', 'No user logged in');
                 return;
             }
-
-            // Fetch the username from backend
-            let username = 'User';
-            let userEmail = 'user@example.com';
             
             try {
                 const userResponse = await axios.get(`http://localhost:3000/api/user/${userId}`, {
@@ -287,7 +285,7 @@ export default function Tasks({ route, navigation }) {
                 console.error('Error fetching username:', error);
             }
 
-            // Format the deadline date
+            // format the deadline date
             const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
 
             const newTask = {
@@ -303,7 +301,7 @@ export default function Tasks({ route, navigation }) {
                 createdBy: isAdminView ? "admin" : userId,
             };
 
-            const response = await axios.post('http://localhost:3000/api/tasks', newTask, {
+            const response = await axios.post('http://localhost:3000/api/tasks/user/create', newTask, {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
 
@@ -311,7 +309,7 @@ export default function Tasks({ route, navigation }) {
             Alert.alert('Success', 'Task added successfully');
             setModalAddVisible(false);
             
-            // Reset form fields
+            // reset form fields
             setEditHeading('');
             setEditDescription('');
             setDeadlineDate(new Date());
@@ -353,19 +351,19 @@ export default function Tasks({ route, navigation }) {
             const timeValues = timePart[0].split(':');
 
             const day = parseInt(datePart[0]);
-            const month = parseInt(datePart[1]) - 1; // Month is 0-indexed in JS Date
+            const month = parseInt(datePart[1]) - 1;
             const year = parseInt(datePart[2]);
             let hours = parseInt(timeValues[0]);
             const minutes = parseInt(timeValues[1]);
             const isPM = timePart[1].toUpperCase() === 'PM';
 
-            // Convert 12-hour format to 24-hour format
+            // convert 12-hour format to 24-hour format
             if (isPM && hours < 12) hours += 12;
             if (!isPM && hours === 12) hours = 0;
 
             const deadlineDate = new Date(year, month, day, hours, minutes);
 
-            // Check if the date is valid
+            // check if the date is valid
             if (isNaN(deadlineDate.getTime())) {
                 throw new Error('Invalid date created');
             }
