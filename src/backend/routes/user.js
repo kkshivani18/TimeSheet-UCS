@@ -45,6 +45,7 @@ router.post('/login', async(req, res) => {
     if (!parseResult.success) {
         return res.status(400).json({ errors: parseResult.error.errors });
     }
+
     const { email, password } = parseResult.data;
     try{
         const user = await User.findOne({ email });
@@ -53,7 +54,7 @@ router.post('/login', async(req, res) => {
         const isMatch = await bcrypt.compare(password, user.passwordHash);
         if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-        const token = jwt.sign({ id: user.userId }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        const token = jwt.sign({ id: user._id, userId: user.userId, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
         res.json({ token, userId: user.userId, username: user.username, role: user.role }); 
     } catch (err){
         res.status(500).json({ message: 'Server error', error: err.message });
@@ -61,7 +62,7 @@ router.post('/login', async(req, res) => {
 });
 
 router.get('/authenticate', authMiddleware, async(req, res) => {
-    const user = await User.findOne({ userId: req.user.id }).select('-passwordHash');
+    const user = await User.findOne({ userId: req.user.userId }).select('-passwordHash');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
 })

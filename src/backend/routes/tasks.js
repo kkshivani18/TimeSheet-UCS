@@ -5,7 +5,7 @@ const Task = require('../models/Tasks');
 const authMiddleware = require('../middleware/auth');
 
 // create a new task (admin)
-router.post('/admin/create', async (req, res) => {
+router.post('/admin/create', authMiddleware, async (req, res) => {
     try {
         const {
             userId,
@@ -45,7 +45,7 @@ router.post('/admin/create', async (req, res) => {
 });
 
 // create a new task (user)
-router.post('/user/create', async (req, res) => {
+router.post('/user/create', authMiddleware, async (req, res) => {
     try {
         const {
             date,
@@ -133,7 +133,7 @@ router.get('/user/:userId/date/:date', async (req, res) => {
 });
 
 // get monthly tasks for a user
-router.get('/user/:userId/monthly', async (req, res) => {
+router.get('/user/:userId/monthly', authMiddleware, async (req, res) => {
     try {
         const { userId } = req.params;
         const { startDate, endDate } = req.query;
@@ -157,7 +157,7 @@ router.get('/user/:userId/monthly', async (req, res) => {
 });
 
 // update a task
-router.put('/:taskId', async (req, res) => {
+router.put('/:taskId', authMiddleware, async (req, res) => {
     try {
         const { taskId } = req.params;
         const updateData = {
@@ -182,7 +182,7 @@ router.put('/:taskId', async (req, res) => {
 });
 
 // delete a task
-router.delete('/:taskId', async (req, res) => {
+router.delete('/:taskId', authMiddleware, async (req, res) => {
     try {
         const { taskId } = req.params;
         const deletedTask = await Task.findByIdAndDelete(taskId);

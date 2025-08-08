@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { DrawerActions } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
 import { Icon } from 'react-native-elements';
@@ -184,12 +184,10 @@ export default function Admin({ navigation }) {
         }
 
         navigation.navigate('Tasks', {
-            userId: selectedUser.userId,
-            userEmail: selectedUser.email,
-            username: selectedUser.username,
-            date: date,
-            isAdminView: true,
-            timestamp: new Date().getTime()
+            date,
+            userId: selectedUser?.userId,
+            username: selectedUser?.username,
+            isAdminView: true
         });
     };
 
@@ -219,96 +217,101 @@ export default function Admin({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            <View style={styles.userPickerContainer}>
-                <Text style={styles.label}>Select Employee:</Text>
-                <Picker
-                    selectedValue={selectedUser?.userId}
-                    style={styles.picker}
-                    onValueChange= {handleUserChange}
-                    // {(itemValue) => {
-                    //     const user = users.find(u => u.userId === itemValue);
-                    //     setSelectedUser(user);
-                    // }}
-                >
-                <Picker.Item label="Select an Employee" value={null} />
-                    {users.map(user => (
-                        <Picker.Item
-                            key={user.userId}
-                            label={user.username}
-                            value={user.userId}
+            <ScrollView 
+                style={styles.scrollContainer}
+                contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }}
+            >
+                <View style={styles.userPickerContainer}>
+                    <Text style={styles.label}>Select Employee:</Text>
+                    <Picker
+                        selectedValue={selectedUser?.userId}
+                        style={styles.picker}
+                        onValueChange= {handleUserChange}
+                        // {(itemValue) => {
+                        //     const user = users.find(u => u.userId === itemValue);
+                        //     setSelectedUser(user);
+                        // }}
+                    >
+                    <Picker.Item label="Select an Employee" value={null} />
+                        {users.map(user => (
+                            <Picker.Item
+                                key={user.userId}
+                                label={user.username}
+                                value={user.userId}
+                            />
+                        ))}
+                    </Picker>
+                </View>
+
+                <View style={styles.pickerContainer}>
+                    <Picker
+                        selectedValue={selectedMonth}
+                        style={styles.pickerMonYr}
+                        onValueChange={handleMonthChange}
+                    >
+                        {months.map((month) => (
+                            <Picker.Item key={month.value} label={month.label} value={month.value} />
+                        ))}
+                    </Picker>
+                    <Picker
+                        selectedValue={selectedYear}
+                        style={styles.pickerMonYr}
+                        onValueChange={handleYearChange}
+                    >
+                        {[...Array(20).keys()].map(year => (
+                            <Picker.Item key={year} label={`${selectedYear - 10 + year}`} value={selectedYear - 10 + year} />
+                        ))}
+                    </Picker>
+                </View>
+
+                {selectedUser && (
+                    <View style={styles.card}>
+                        <Text style={styles.subtitle}>
+                            {selectedUser.username}'s Calendar
+                        </Text>
+
+                        <Calendar
+                            key={`${selectedYear}-${selectedMonth}-${selectedUser?.userId || 'none'}`}
+                            style={styles.calendar}
+                            hideArrows={true}
+                            markedDates={getMarkedDates()}
+                            theme={{
+                                calendarBackground: 'white',
+                                textSectionTitleColor: '#b6c1cd',
+                                selectedDayBackgroundColor: '#00adf5',
+                                selectedDayTextColor: '#ffffff',
+                                todayTextColor: '#00adf5',
+                                dayTextColor: '#2d4150',
+                                textDisabledColor: '#d9e1e8',
+                                dotColor: '#00adf5',
+                                selectedDotColor: '#ffffff',
+                                arrowColor: 'orange',
+                                monthTextColor: 'black',
+                                indicatorColor: 'black',
+                                textDayFontWeight: '300',
+                                textMonthFontWeight: 'bold',
+                                textDayHeaderFontWeight: '300',
+                                textDayFontSize: 16,
+                                textMonthFontSize: 16,
+                                textDayHeaderFontSize: 14,
+                            }}
+                            current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`}
+                            onDayPress={(day) => viewUserTasks(day.dateString)}
                         />
-                    ))}
-                </Picker>
-            </View>
-
-            <View style={styles.pickerContainer}>
-                <Picker
-                    selectedValue={selectedMonth}
-                    style={styles.pickerMonYr}
-                    onValueChange={handleMonthChange}
-                >
-                    {months.map((month) => (
-                        <Picker.Item key={month.value} label={month.label} value={month.value} />
-                    ))}
-                </Picker>
-                <Picker
-                    selectedValue={selectedYear}
-                    style={styles.pickerMonYr}
-                    onValueChange={handleYearChange}
-                >
-                    {[...Array(20).keys()].map(year => (
-                        <Picker.Item key={year} label={`${selectedYear - 10 + year}`} value={selectedYear - 10 + year} />
-                    ))}
-                </Picker>
-            </View>
-
-            {selectedUser && (
-                <View style={styles.card}>
-                    <Text style={styles.subtitle}>
-                        {selectedUser.username}'s Calendar
-                    </Text>
-
-                    <Calendar
-                        key={`${selectedYear}-${selectedMonth}-${selectedUser?.userId || 'none'}`}
-                        style={styles.calendar}
-                        hideArrows={true}
-                        markedDates={getMarkedDates()}
-                        theme={{
-                            calendarBackground: 'white',
-                            textSectionTitleColor: '#b6c1cd',
-                            selectedDayBackgroundColor: '#00adf5',
-                            selectedDayTextColor: '#ffffff',
-                            todayTextColor: '#00adf5',
-                            dayTextColor: '#2d4150',
-                            textDisabledColor: '#d9e1e8',
-                            dotColor: '#00adf5',
-                            selectedDotColor: '#ffffff',
-                            arrowColor: 'orange',
-                            monthTextColor: 'black',
-                            indicatorColor: 'black',
-                            textDayFontWeight: '300',
-                            textMonthFontWeight: 'bold',
-                            textDayHeaderFontWeight: '300',
-                            textDayFontSize: 16,
-                            textMonthFontSize: 16,
-                            textDayHeaderFontSize: 14,
-                        }}
-                        current={`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`}
-                        onDayPress={(day) => viewUserTasks(day.dateString)}
-                    />
-                    {/* Legend */}
-                    <View style={styles.legendContainer}>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendColor, { backgroundColor: '#DC143C' }]} />
-                            <Text style={styles.legendText}>Leave Day</Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendColor, { backgroundColor: '#007AFF' }]} />
-                            <Text style={styles.legendText}>Paid Holiday</Text>
+                        {/* Legend */}
+                        <View style={styles.legendContainer}>
+                            <View style={styles.legendItem}>
+                                <View style={[styles.legendColor, { backgroundColor: '#DC143C' }]} />
+                                <Text style={styles.legendText}>Leave Day</Text>
+                            </View>
+                            <View style={styles.legendItem}>
+                                <View style={[styles.legendColor, { backgroundColor: '#007AFF' }]} />
+                                <Text style={styles.legendText}>Paid Holiday</Text>
+                            </View>
                         </View>
                     </View>
-                </View>
-            )}
+                )}
+            </ScrollView>
         </View>
     );
 }
@@ -335,6 +338,11 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 19,
         fontWeight: 'bold',
+    },
+    scrollContainer: {
+        flex: 1,
+        backgroundColor: '#f0f0f0',
+        width: '100%'
     },
     userPickerContainer: {
         backgroundColor: 'white',
@@ -409,4 +417,34 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#666',
     },
+    viewMonthlyButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#007AFF',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        marginTop: 15,
+    },
+    viewMonthlyButtonText: {
+        color: 'white',
+        marginLeft: 5,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    assignTaskButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#28A745',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        marginTop: 10,
+    },
+    assignTaskButtonText: {
+        color: 'white',
+        marginLeft: 5,
+        fontSize: 14,
+        fontWeight: '600',
+    }
 });

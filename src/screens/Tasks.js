@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Platform, ScrollView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 // import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
 // import { collection, query, where, getDoc, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, serverTimestamp } from 'firebase/firestore';
@@ -114,7 +114,7 @@ export default function Tasks({ route, navigation }) {
         }
     }, [selectedDate, viewingUserId, isAdminView]);
 
-    // Fetch monthly tasks when month or year changes
+    // fetch monthly tasks when month or year changes
     useEffect(() => {
         if (!selectedDate && (viewingUserId || !isAdminView) && !monthlyTasksLoaded) {
             fetchMonthlyTasks();
@@ -132,10 +132,10 @@ export default function Tasks({ route, navigation }) {
                 return;
             }
 
-            // Determine which user's tasks to fetch
+            // determines which user's tasks to fetch
             const targetUserId = isAdminView ? viewingUserId : userId;
 
-            // Get selected month's start and end dates
+            // selected month's start and end dates
             const startOfMonth = new Date(selectedYear, selectedMonth, 1);
             startOfMonth.setHours(0, 0, 0, 0);
 
@@ -181,7 +181,7 @@ export default function Tasks({ route, navigation }) {
             return;
         }
 
-        // Determine which user's tasks to fetch
+        // determine which user's tasks to fetch
         const targetUserId = isAdminView ? viewingUserId : userId;
 
         console.log('Fetching tasks for:', {
@@ -197,7 +197,6 @@ export default function Tasks({ route, navigation }) {
             }
         );
 
-        console.log('Tasks found:', response.data.length);
         setTasks(response.data);
     } catch (error) {
         console.error('Error fetching tasks:', error);
@@ -220,7 +219,6 @@ export default function Tasks({ route, navigation }) {
             return;
         }
 
-        // If no date is selected, prompt the user to select a date first
         if (!selectedDate) {
             Alert.alert(
                 'Select a Date',
@@ -228,7 +226,6 @@ export default function Tasks({ route, navigation }) {
                 [{
                     text: 'OK',
                     onPress: () => {
-                        // Navigate to the appropriate dashboard based on user role
                         if (isAdminView) {
                             navigation.navigate('Admin');
                         } else if (userRole === 'admin') {
@@ -242,7 +239,7 @@ export default function Tasks({ route, navigation }) {
             return;
         }
 
-        // In navigation buttons section
+        // navigation buttons section
         if (isAdminView) {
             navigation.navigate('Admin');
         } else if (userRole === 'admin') {
@@ -262,59 +259,87 @@ export default function Tasks({ route, navigation }) {
     // save task
     const handleSaveTask = async () => {
         try {
+
             if (!editHeading.trim() || !editDescription.trim()) {
                 Alert.alert('Error', 'Heading and description are required');
                 return;
             }
 
-            const userId = await AsyncStorage.getItem('userId');
-            let username = user?.username|| 'User';
-            let userEmail = user?.email || 'user@example.com';
-            if (!userId) {
+            const currentUserId = await AsyncStorage.getItem('userId');
+            
+            if (!currentUserId) {
                 Alert.alert('Error', 'No user logged in');
                 return;
             }
             
-            try {
-                const userResponse = await axios.get(`http://localhost:3000/api/user/${userId}`, {
-                    headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
-                });
-                username = userResponse.data.username;
-                userEmail = userResponse.data.email;
-            } catch (error) {
-                console.error('Error fetching username:', error);
+            // get the target user 
+            const targetUserId = isAdminView ? viewingUserId : currentUserId;
+            
+            if (!targetUserId) {
+                Alert.alert('Error', 'No target user identified');
+                console.log('ERROR: targetUserId is null/undefined');
+                return;
+            }
+            const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
+            let apiEndpoint, taskData;
+            
+            if (isAdminView) {
+                // admin creating task for another user - admin/create endpoint
+                let targetUsername = viewingUsername || 'User';
+                let targetUserEmail = 'user@example.com';
+                
+                try {
+                    const userResponse = await axios.get(`http://localhost:3000/api/user/${targetUserId}`, {
+                        headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
+                    });
+                    targetUsername = userResponse.data.username;
+                    targetUserEmail = userResponse.data.email;
+                } catch (error) {
+                    console.error('Error fetching target user details:', error);
+                }
+
+                apiEndpoint = 'http://localhost:3000/api/tasks/admin/create';
+                taskData = {
+                    userId: targetUserId,
+                    email: targetUserEmail,
+                    username: targetUsername,
+                    heading: editHeading.trim(),
+                    description: editDescription.trim(),
+                    deadline: formattedDeadline,
+                    date: selectedDate,
+                    completed: false,
+                    createdBy: "admin"
+                };
+            } else {
+                // user or admin creating task for oneself - user/create endpoint
+                
+                apiEndpoint = 'http://localhost:3000/api/tasks/user/create';
+                taskData = {
+                    heading: editHeading.trim(),
+                    description: editDescription.trim(),
+                    deadline: formattedDeadline,
+                    date: selectedDate,
+                    completed: false
+                };
             }
 
-            // format the deadline date
-            const formattedDeadline = format(deadlineDate, 'dd/MM/yyyy - hh:mm a');
-
-            const newTask = {
-                userId: isAdminView ? viewingUserId : userId,
-                email: userEmail,
-                username: username,
-                heading: editHeading.trim(),
-                description: editDescription.trim(),
-                deadline: formattedDeadline,
-                date: selectedDate,
-                completed: false,
-                createdAt: new Date().toISOString(),
-                createdBy: isAdminView ? "admin" : userId,
-            };
-
-            const response = await axios.post('http://localhost:3000/api/tasks/user/create', newTask, {
+            const response = await axios.post(apiEndpoint, taskData, {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
-
             setTasks([...tasks, response.data]);
-            Alert.alert('Success', 'Task added successfully');
-            setModalAddVisible(false);
             
-            // reset form fields
+            const successMessage = isAdminView 
+                ? `Task added successfully for ${taskData.username || viewingUsername}`
+                : 'Task added successfully';
+            Alert.alert('Success', successMessage);
+            
+            setModalAddVisible(false);
             setEditHeading('');
             setEditDescription('');
             setDeadlineDate(new Date());
         } catch (error) {
             console.error('Error saving task:', error);
+            console.error('Error details:', error.response?.data);
             Alert.alert('Error', 'Failed to save task');
         }
     };
@@ -324,9 +349,8 @@ export default function Tasks({ route, navigation }) {
         setEditHeading(task.heading);
         setEditDescription(task.description);
 
-        // parse the deadline string to a Date object
+        // parse the deadline string to date obj
         try {
-            // First check if deadline exists and is in the expected format
             if (!task.deadline || typeof task.deadline !== 'string') {
                 console.log('Deadline is undefined or not a string, using current date');
                 setDeadlineDate(new Date());
@@ -335,7 +359,6 @@ export default function Tasks({ route, navigation }) {
                 return;
             }
 
-            // Check if the deadline string contains the expected delimiter
             if (!task.deadline.includes(' - ')) {
                 console.log('Deadline format is not as expected, using current date');
                 setDeadlineDate(new Date());
@@ -370,7 +393,6 @@ export default function Tasks({ route, navigation }) {
 
             setDeadlineDate(deadlineDate);
         } catch (error) {
-            // If parsing fails, use current date
             console.error('Error parsing deadline date:', error);
             setDeadlineDate(new Date());
         }
@@ -454,7 +476,6 @@ export default function Tasks({ route, navigation }) {
 
     const toggleTaskCompletion = async (taskId, currentStatus) => {
         try {
-            console.log('Toggling task:', taskId); // Debug log
             
             const response = await axios.patch(
                 `http://localhost:3000/api/tasks/${taskId}/toggle`,
@@ -464,14 +485,14 @@ export default function Tasks({ route, navigation }) {
                 }
             );
 
-            // Update local state only if request succeeds
+            // update local state only if request succeeds
             setTasks(tasks.map(task =>
                 task._id === taskId
                     ? { ...task, completed: !currentStatus }
                     : task
             ));
 
-            // Also update monthly tasks if in monthly view
+            // update monthly tasks if in monthly view
             if (monthlyTasks.length > 0) {
                 setMonthlyTasks(monthlyTasks.map(task =>
                     task._id === taskId
@@ -606,7 +627,7 @@ export default function Tasks({ route, navigation }) {
     );
 }
 
-    // Helper function to get selected month name
+    // function to get selected month name
     const getSelectedMonthName = () => {
         const months = [
             'January', 'February', 'March', 'April', 'May', 'June',
@@ -651,48 +672,50 @@ export default function Tasks({ route, navigation }) {
     };
 
     // Render monthly tasks as individual cards
-    const renderMonthlyTasksList = () => {
+        const renderMonthlyTasksList = () => {
+            return (
+                <View style={styles.monthlyTasksContainer}>
+                    <View style={styles.monthSelectorContainer}>
+                        <TouchableOpacity
+                            style={styles.monthNavigationButton}
+                            onPress={goToPreviousMonth}
+                        >
+                            <Icon name="chevron-left" type="feather" size={24} color="#007AFF" />
+                        </TouchableOpacity>
 
-        return (
-            <View style={styles.monthlyTasksContainer}>
-                <View style={styles.monthSelectorContainer}>
-                    <TouchableOpacity
-                        style={styles.monthNavigationButton}
-                        onPress={goToPreviousMonth}
-                    >
-                        <Icon name="chevron-left" type="feather" size={24} color="#007AFF" />
-                    </TouchableOpacity>
+                        <View style={styles.monthYearContainer}>
+                            <Text style={styles.monthTitle}>{getSelectedMonthName()}</Text>
+                            <Text style={styles.yearText}>{selectedYear}</Text>
+                        </View>
 
-                    <View style={styles.monthYearContainer}>
-                        <Text style={styles.monthTitle}>{getSelectedMonthName()}</Text>
-                        <Text style={styles.yearText}>{selectedYear}</Text>
+                        <TouchableOpacity
+                            style={styles.monthNavigationButton}
+                            onPress={goToNextMonth}
+                        >
+                            <Icon name="chevron-right" type="feather" size={24} color="#007AFF" />
+                        </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity
-                        style={styles.monthNavigationButton}
-                        onPress={goToNextMonth}
-                    >
-                        <Icon name="chevron-right" type="feather" size={24} color="#007AFF" />
-                    </TouchableOpacity>
+                    {loading ? (
+                        <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+                    ) : (
+                        <FlatList
+                            data={sortTasksByDate(monthlyTasks)}
+                            renderItem={renderTask}
+                            keyExtractor={(item) => item._id}
+                            style={{ flex: 1 }} 
+                            contentContainerStyle={{ paddingBottom: 100 }}
+                            showsVerticalScrollIndicator={true}
+                            ListEmptyComponent={() => (
+                                <View style={styles.noTasksContainer}>
+                                    <Text style={styles.noTasksText}>No tasks for {getSelectedMonthName()} {selectedYear}</Text>
+                                </View>
+                            )}
+                        />
+                    )}
                 </View>
-
-                {loading ? (
-                    <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
-                ) : (
-                    <FlatList
-                        data={sortTasksByDate(monthlyTasks)}
-                        renderItem={renderTask}
-                        keyExtractor={(item) => item._id}
-                        ListEmptyComponent={() => (
-                            <View style={styles.noTasksContainer}>
-                                <Text style={styles.noTasksText}>No tasks for {getSelectedMonthName()} {selectedYear}</Text>
-                            </View>
-                        )}
-                    />
-                )}
-            </View>
-        );
-    };
+            );
+        };
 
     const handleLogout = async () => {
         try {
@@ -705,389 +728,498 @@ export default function Tasks({ route, navigation }) {
     };
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    {(isAdminView || userRole === "admin") ? (
-                        <TouchableOpacity
-                            onPress={() => {
-                                if (isAdminView && viewingUserId !== user?.userId) {
-                                    navigation.navigate("Admin"); // Admin viewing users' tasks → Go to Admin Dashboard
-                                } else {
-                                    // Admin viewing their own tasks → Go back to previous screen
-                                    if (navigation.canGoBack()) {
-                                        navigation.goBack();
-                                    } else {
-                                        navigation.navigate("AdminTasks");
-                                    }
+        // <View style={styles.container}>
+        //     <View style={styles.header}>
+        //         <View style={styles.headerLeft}>
+        //             {(isAdminView || userRole === "admin") ? (
+        //                 <TouchableOpacity
+        //                     onPress={() => {
+        //                         if (isAdminView && viewingUserId !== user?.userId) {
+        //                             navigation.navigate("Admin"); // Admin viewing users' tasks → Go to Admin Dashboard
+        //                         } else {
+        //                             // Admin viewing their own tasks → Go back to previous screen
+        //                             if (navigation.canGoBack()) {
+        //                                 navigation.goBack();
+        //                             } else {
+        //                                 navigation.navigate("AdminTasks");
+        //                             }
 
-                                }
-                            }}
-                            style={styles.backButton}
-                        >
-                            <Icon name="arrow-left" type="feather" size={18} color="#333" />
+        //                         }
+        //                     }}
+        //                     style={styles.backButton}
+        //                 >
+        //                     <Icon name="arrow-left" type="feather" size={18} color="#333" />
+        //                 </TouchableOpacity>
+        //             ) : showMenu && (
+        //                 <TouchableOpacity onPress={() => navigation.openDrawer()}>
+        //                     <Icon name="menu" size={25} color="#333" />
+        //                 </TouchableOpacity>
+        //             )}
+        //         </View>
+
+        //         <View style={styles.headerCenter}>
+        //             <Text style={styles.title}>
+        //                 {selectedDate ? (
+        //                     isAdminView
+        //                         ? `${viewingUsername}'s Tasks - ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
+        //                         : `Tasks for ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
+        //                 ) : (
+        //                     isAdminView
+        //                         ? `${viewingUsername}'s Tasks`
+        //                         : 'Tasks'
+        //                 )}
+        //             </Text>
+        //         </View>
+
+        //         <View style={styles.headerRight}>
+        //             <TouchableOpacity onPress={handleLogout}>
+        //                 <Icon name="logout" size={25} color="#333" />
+        //             </TouchableOpacity>
+        //         </View>
+        //     </View>
+
+        //     {/* Navigation buttons */}
+        //     <View style={styles.navigationButtonsContainer}>
+        //         <TouchableOpacity
+        //             style={[styles.navigationButton, selectedDate ? styles.activeNavigationButton : {}]}
+        //             onPress={() => {
+        //                 // Check admin view and navigate accordingly
+
+        //                 if (isAdminView) {
+        //                     // admin viewing a user's tasks, go to Admin dashboard
+        //                     navigation.navigate('Admin');
+        //                 }
+
+        //                 else if (userRole === 'admin') {
+        //                   // admin is viewing own tasks (ideally should go to AdminTasks but giving the navigation.openDrawer error) - (temp fix)
+        //                     navigation.navigate('Admin');
+        //                 }
+
+        //                 else if(userRole !== 'admin') {
+        //                     // Regular user goes to Dashboard
+        //                     navigation.navigate('Dashboard');
+        //                 }
+        //             }}
+        //         >
+        //             <Icon name="calendar" type="feather" size={16} color={selectedDate ? "#fff" : "#007AFF"} />
+        //             <Text style={[styles.navigationButtonText, selectedDate ? styles.activeNavigationButtonText : {}]}>Select Day</Text>
+        //         </TouchableOpacity>
+
+        //         <TouchableOpacity
+        //             style={[styles.navigationButton, !selectedDate ? styles.activeNavigationButton : {}]}
+        //             onPress={() => {
+        //                 // Clear selectedDate to show monthly view
+        //                 setSelectedDate(null);
+        //                 // Ensure monthly tasks are loaded
+        //                 if (!monthlyTasksLoaded) {
+        //                     fetchMonthlyTasks();
+        //                 }
+        //             }}
+        //         >
+        //             <Icon name="calendar-range" type="material-community" size={16} color={!selectedDate ? "#fff" : "#007AFF"} />
+        //             <Text style={[styles.navigationButtonText, !selectedDate ? styles.activeNavigationButtonText : {}]}>Month View</Text>
+        //         </TouchableOpacity>
+        //     </View>
+
+        //     {/* <ScrollView 
+        //         style={styles.scrollContainer}
+        //         contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }}
+        //     > */}
+        //         {loading ? (
+        //             <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+        //         ) : !selectedDate && monthlyTasksLoaded ? (
+        //             renderMonthlyTasksList()
+        //         ) : tasks.length === 0 ? (
+        //             <View style={styles.noTasksContainer}>
+        //                 <Text style={styles.noTasksText}>No tasks for this date</Text>
+        //             </View>
+        //         ) : (
+        //             <FlatList
+        //             data={tasks}
+        //             renderItem={renderTask}
+        //             keyExtractor={(item) => item._id}
+        //             />
+        //         )}
+
+
+                <View style={styles.container}>
+                <View style={styles.header}>
+                    <View style={styles.headerLeft}>
+                        {(isAdminView || userRole === "admin") ? (
+                            <TouchableOpacity
+                                onPress={() => {
+                                    if (isAdminView && viewingUserId !== user?.userId) {
+                                        navigation.navigate("Admin");
+                                    } else {
+                                        if (navigation.canGoBack()) {
+                                            navigation.goBack();
+                                        } else {
+                                            navigation.navigate("AdminTasks");
+                                        }
+                                    }
+                                }}
+                                style={styles.backButton}
+                            >
+                                <Icon name="arrow-left" type="feather" size={18} color="#333" />
+                            </TouchableOpacity>
+                        ) : showMenu && (
+                            <TouchableOpacity onPress={() => navigation.openDrawer()}>
+                                <Icon name="menu" size={25} color="#333" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    <View style={styles.headerCenter}>
+                        <Text style={styles.title}>
+                            {selectedDate ? (
+                                isAdminView
+                                    ? `${viewingUsername}'s Tasks - ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
+                                    : `Tasks for ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
+                            ) : (
+                                isAdminView
+                                    ? `${viewingUsername}'s Tasks`
+                                    : 'Tasks'
+                            )}
+                        </Text>
+                    </View>
+
+                    <View style={styles.headerRight}>
+                        <TouchableOpacity onPress={handleLogout}>
+                            <Icon name="logout" size={25} color="#333" />
                         </TouchableOpacity>
-                    ) : showMenu && (
-                        <TouchableOpacity onPress={() => navigation.openDrawer()}>
-                            <Icon name="menu" size={25} color="#333" />
-                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Navigation buttons */}
+                <View style={styles.navigationButtonsContainer}>
+                    <TouchableOpacity
+                        style={[styles.navigationButton, selectedDate ? styles.activeNavigationButton : {}]}
+                        onPress={() => {
+                            if (isAdminView) {
+                                navigation.navigate('Admin');
+                            } else if (userRole === 'admin') {
+                                navigation.navigate('Admin');
+                            } else if(userRole !== 'admin') {
+                                navigation.navigate('Dashboard');
+                            }
+                        }}
+                    >
+                        <Icon name="calendar" type="feather" size={16} color={selectedDate ? "#fff" : "#007AFF"} />
+                        <Text style={[styles.navigationButtonText, selectedDate ? styles.activeNavigationButtonText : {}]}>Select Day</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.navigationButton, !selectedDate ? styles.activeNavigationButton : {}]}
+                        onPress={() => {
+                            setSelectedDate(null);
+                            if (!monthlyTasksLoaded) {
+                                fetchMonthlyTasks();
+                            }
+                        }}
+                    >
+                        <Icon name="calendar-range" type="material-community" size={16} color={!selectedDate ? "#fff" : "#007AFF"} />
+                        <Text style={[styles.navigationButtonText, !selectedDate ? styles.activeNavigationButtonText : {}]}>Month View</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Main content area with proper flex */}
+                <View style={{ flex: 1 }}>
+                    {loading ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color="#007AFF" />
+                        </View>
+                    ) : !selectedDate && monthlyTasksLoaded ? (
+                        renderMonthlyTasksList()
+                    ) : tasks.length === 0 ? (
+                        <View style={styles.noTasksContainer}>
+                            <Text style={styles.noTasksText}>No tasks for this date</Text>
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={tasks}
+                            renderItem={renderTask}
+                            keyExtractor={(item) => item._id}
+                            contentContainerStyle={{ paddingBottom: 100 }}
+                            showsVerticalScrollIndicator={true}
+                        />
                     )}
                 </View>
 
-                <View style={styles.headerCenter}>
-                    <Text style={styles.title}>
-                        {selectedDate ? (
-                            isAdminView
-                                ? `${viewingUsername}'s Tasks - ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
-                                : `Tasks for ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
-                        ) : (
-                            isAdminView
-                                ? `${viewingUsername}'s Tasks`
-                                : 'Tasks'
-                        )}
-                    </Text>
-                </View>
-
-                <View style={styles.headerRight}>
-                    <TouchableOpacity onPress={handleLogout}>
-                        <Icon name="logout" size={25} color="#333" />
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* Navigation buttons */}
-            <View style={styles.navigationButtonsContainer}>
-                <TouchableOpacity
-                    style={[styles.navigationButton, selectedDate ? styles.activeNavigationButton : {}]}
-                    onPress={() => {
-                        // Check admin view and navigate accordingly
-
-                        if (isAdminView) {
-                            // admin viewing a user's tasks, go to Admin dashboard
-                            navigation.navigate('Admin');
-                        }
-
-                        else if (userRole === 'admin') {
-                          // admin is viewing own tasks (ideally should go to AdminTasks but giving the navigation.openDrawer error) - (temp fix)
-                            navigation.navigate('Admin');
-                        }
-
-                        else if(userRole !== 'admin') {
-                            // Regular user goes to Dashboard
-                            navigation.navigate('Dashboard');
-                        }
-                    }}
-                >
-                    <Icon name="calendar" type="feather" size={16} color={selectedDate ? "#fff" : "#007AFF"} />
-                    <Text style={[styles.navigationButtonText, selectedDate ? styles.activeNavigationButtonText : {}]}>Select Day</Text>
+                {/* floating "+" button */}
+                <TouchableOpacity style={styles.addButton} onPress={handleAddTask}>
+                    <Icon name="add" size={30} color="white" />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={[styles.navigationButton, !selectedDate ? styles.activeNavigationButton : {}]}
-                    onPress={() => {
-                        // Clear selectedDate to show monthly view
-                        setSelectedDate(null);
-                        // Ensure monthly tasks are loaded
-                        if (!monthlyTasksLoaded) {
-                            fetchMonthlyTasks();
-                        }
+                {/* add task modal */}
+                <Modal
+                    animationType="slide"
+                    transparent={true}
+                    visible={modalAddVisible}
+                    onRequestClose={() => {
+                        setModalAddVisible(false);
+                        setShowPicker(false);
                     }}
                 >
-                    <Icon name="calendar-range" type="material-community" size={16} color={!selectedDate ? "#fff" : "#007AFF"} />
-                    <Text style={[styles.navigationButtonText, !selectedDate ? styles.activeNavigationButtonText : {}]}>Month View</Text>
-                </TouchableOpacity>
-            </View>
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContainer}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Add Task for {format(new Date(selectedDate), 'dd/MM/yyyy')}</Text>
+                                <TouchableOpacity onPress={() => {
+                                    setModalAddVisible(false);
+                                    setShowPicker(false);
+                                }}>
+                                    <Icon name="close" size={20} color="black" />
+                                </TouchableOpacity>
+                            </View>
 
-            {loading ? (
-                <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
-            ) : !selectedDate && monthlyTasksLoaded ? (
-                renderMonthlyTasksList()
-            ) : tasks.length === 0 ? (
-                <View style={styles.noTasksContainer}>
-                    <Text style={styles.noTasksText}>No tasks for this date</Text>
-                </View>
-            ) : (
-                <FlatList
-                data={tasks}
-                renderItem={renderTask}
-                keyExtractor={(item) => item._id}
-                />
-            )}
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.inputLabel}>Task Heading</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={editHeading}
+                                    onChangeText={setEditHeading}
+                                    placeholderTextColor="#000000"
+                                />
 
-            {/* floating "+" button */}
-            <TouchableOpacity style={styles.addButton} onPress={handleAddTask}>
-                <Icon name="add" size={30} color="white" />
-            </TouchableOpacity>
+                                <Text style={styles.inputLabel}>Description</Text>
+                                <TextInput
+                                    style={[styles.input, styles.textArea]}
+                                    value={editDescription}
+                                    onChangeText={setEditDescription}
+                                    multiline={true}
+                                    numberOfLines={4}
+                                    placeholderTextColor="#000000"
+                                />
 
-           {/* add task modal */}
-            <Modal
-                animationType="slide"
-                transparent={true}
-                visible={modalAddVisible}
-                onRequestClose={() => {
-                    setModalAddVisible(false);
-                    setShowPicker(false);
-                }}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Add Task for {format(new Date(selectedDate), 'dd/MM/yyyy')}</Text>
-                            <TouchableOpacity onPress={() => {
-                                setModalAddVisible(false);
-                                setShowPicker(false);
-                            }}>
-                                <Icon name="close" size={20} color="black" />
+                                <Text style={styles.inputLabel}>Deadline</Text>
+                                <View style={styles.dateTimeButtonsContainer}>
+                                    <TouchableOpacity
+                                        style={styles.dateTimeButton}
+                                        onPress={() => {
+                                            // ensure any existing picker is closed first
+                                            setShowPicker(false);
+                                            // use setTimeout to ensure the previous picker is fully closed
+                                            setTimeout(() => {
+                                                setPickerMode('date');
+                                                setShowPicker(true);
+                                            }, 100);
+                                        }}
+                                    >
+                                        <Icon name="calendar" type="feather" size={16} color="#007AFF" />
+                                        <Text style={styles.dateTimeButtonText}>Select Date</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={styles.dateTimeButton}
+                                        onPress={() => {
+                                            // ensure any existing picker is closed first
+                                            setShowPicker(false);
+                                            // Use setTimeout to ensure the previous picker is fully closed
+                                            setTimeout(() => {
+                                                setPickerMode('time');
+                                                setShowPicker(true);
+                                            }, 100);
+                                        }}
+                                    >
+                                        <Icon name="clock" type="feather" size={16} color="#007AFF" />
+                                        <Text style={styles.dateTimeButtonText}>Select Time</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={styles.selectedDeadlineContainer}>
+                                    <Text style={styles.selectedDeadlineText}>
+                                        {format(deadlineDate, 'dd/MM/yyyy - hh:mm a')}
+                                    </Text>
+                                </View>
+
+                                {showPicker && (
+                                    <DateTimePicker
+                                        testID="dateTimePicker"
+                                        value={deadlineDate}
+                                        mode={pickerMode}
+                                        is24Hour={false}
+                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                        onChange={(_, selectedDate) => {
+                                            // Always hide the picker on Android after selection
+                                            if (Platform.OS === 'android') {
+                                                setShowPicker(false);
+                                            }
+
+                                            // Update the date if a selection was made
+                                            if (selectedDate) {
+                                                // For iOS, if in date mode, switch to time mode after date selection
+                                                if (Platform.OS === 'ios' && pickerMode === 'date') {
+                                                    setPickerMode('time');
+                                                    // Create a new date with the selected date but keep current time
+                                                    const updatedDate = new Date(selectedDate);
+                                                    updatedDate.setHours(deadlineDate.getHours());
+                                                    updatedDate.setMinutes(deadlineDate.getMinutes());
+                                                    setDeadlineDate(updatedDate);
+                                                }
+                                                // For iOS, if in time mode, hide picker after time selection
+                                                else if (Platform.OS === 'ios' && pickerMode === 'time') {
+                                                    setShowPicker(false);
+                                                    // Create a new date with the current date but selected time
+                                                    const updatedDate = new Date(deadlineDate);
+                                                    updatedDate.setHours(selectedDate.getHours());
+                                                    updatedDate.setMinutes(selectedDate.getMinutes());
+                                                    setDeadlineDate(updatedDate);
+                                                }
+                                                // For Android, update the date directly
+                                                else {
+                                                    setDeadlineDate(selectedDate);
+                                                }
+                                            }
+                                        }}
+                                    />
+                                )}
+                            </View>
+
+                            <TouchableOpacity
+                                style={styles.saveButton}
+                                onPress={handleSaveTask}
+                            >
+                                <Text style={styles.saveButtonText}>Save Task</Text>
                             </TouchableOpacity>
                         </View>
-
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.inputLabel}>Task Heading</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editHeading}
-                                onChangeText={setEditHeading}
-                                placeholderTextColor="#000000"
-                            />
-
-                            <Text style={styles.inputLabel}>Description</Text>
-                            <TextInput
-                                style={[styles.input, styles.textArea]}
-                                value={editDescription}
-                                onChangeText={setEditDescription}
-                                multiline={true}
-                                numberOfLines={4}
-                                placeholderTextColor="#000000"
-                            />
-
-                            <Text style={styles.inputLabel}>Deadline</Text>
-                            <View style={styles.dateTimeButtonsContainer}>
-                                <TouchableOpacity
-                                    style={styles.dateTimeButton}
-                                    onPress={() => {
-                                        // Ensure any existing picker is closed first
-                                        setShowPicker(false);
-                                        // Use setTimeout to ensure the previous picker is fully closed
-                                        setTimeout(() => {
-                                            setPickerMode('date');
-                                            setShowPicker(true);
-                                        }, 100);
-                                    }}
-                                >
-                                    <Icon name="calendar" type="feather" size={16} color="#007AFF" />
-                                    <Text style={styles.dateTimeButtonText}>Select Date</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.dateTimeButton}
-                                    onPress={() => {
-                                        // Ensure any existing picker is closed first
-                                        setShowPicker(false);
-                                        // Use setTimeout to ensure the previous picker is fully closed
-                                        setTimeout(() => {
-                                            setPickerMode('time');
-                                            setShowPicker(true);
-                                        }, 100);
-                                    }}
-                                >
-                                    <Icon name="clock" type="feather" size={16} color="#007AFF" />
-                                    <Text style={styles.dateTimeButtonText}>Select Time</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.selectedDeadlineContainer}>
-                                <Text style={styles.selectedDeadlineText}>
-                                    {format(deadlineDate, 'dd/MM/yyyy - hh:mm a')}
-                                </Text>
-                            </View>
-
-                            {showPicker && (
-                                <DateTimePicker
-                                    testID="dateTimePicker"
-                                    value={deadlineDate}
-                                    mode={pickerMode}
-                                    is24Hour={false}
-                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                    onChange={(_, selectedDate) => {
-                                        // Always hide the picker on Android after selection
-                                        if (Platform.OS === 'android') {
-                                            setShowPicker(false);
-                                        }
-
-                                        // Update the date if a selection was made
-                                        if (selectedDate) {
-                                            // For iOS, if in date mode, switch to time mode after date selection
-                                            if (Platform.OS === 'ios' && pickerMode === 'date') {
-                                                setPickerMode('time');
-                                                // Create a new date with the selected date but keep current time
-                                                const updatedDate = new Date(selectedDate);
-                                                updatedDate.setHours(deadlineDate.getHours());
-                                                updatedDate.setMinutes(deadlineDate.getMinutes());
-                                                setDeadlineDate(updatedDate);
-                                            }
-                                            // For iOS, if in time mode, hide picker after time selection
-                                            else if (Platform.OS === 'ios' && pickerMode === 'time') {
-                                                setShowPicker(false);
-                                                // Create a new date with the current date but selected time
-                                                const updatedDate = new Date(deadlineDate);
-                                                updatedDate.setHours(selectedDate.getHours());
-                                                updatedDate.setMinutes(selectedDate.getMinutes());
-                                                setDeadlineDate(updatedDate);
-                                            }
-                                            // For Android, update the date directly
-                                            else {
-                                                setDeadlineDate(selectedDate);
-                                            }
-                                        }
-                                    }}
-                                />
-                            )}
-                        </View>
-
-                        <TouchableOpacity
-                            style={styles.saveButton}
-                            onPress={handleSaveTask}
-                        >
-                            <Text style={styles.saveButtonText}>Save Task</Text>
-                        </TouchableOpacity>
                     </View>
-                </View>
-            </Modal>
+                </Modal>
 
-            {/* edit task modal */}
-            <Modal
-                animationType="slide"
-                transparent={true}
-                visible={modalEditVisible}
-                onRequestClose={() => {
-                    setModalEditVisible(false);
-                    setShowPicker(false);
-                }}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Edit Task for {format(new Date(selectedDate), 'dd/MM/yyyy')}</Text>
-                            <TouchableOpacity onPress={() => {
-                                setModalEditVisible(false);
-                                setShowPicker(false);
-                            }}>
-                                <Icon name="close" size={20} color="black" />
+                {/* edit task modal */}
+                <Modal
+                    animationType="slide"
+                    transparent={true}
+                    visible={modalEditVisible}
+                    onRequestClose={() => {
+                        setModalEditVisible(false);
+                        setShowPicker(false);
+                    }}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContainer}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Edit Task for {format(new Date(selectedDate), 'dd/MM/yyyy')}</Text>
+                                <TouchableOpacity onPress={() => {
+                                    setModalEditVisible(false);
+                                    setShowPicker(false);
+                                }}>
+                                    <Icon name="close" size={20} color="black" />
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.inputLabel}>Task Heading</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={editHeading}
+                                    onChangeText={setEditHeading}
+                                    placeholderTextColor="#000000"
+                                />
+
+                                <Text style={styles.inputLabel}>Description</Text>
+                                <TextInput
+                                    style={[styles.input, styles.textArea]}
+                                    value={editDescription}
+                                    onChangeText={setEditDescription}
+                                    multiline={true}
+                                    numberOfLines={4}
+                                    placeholderTextColor="#000000"
+                                />
+
+                                <Text style={styles.inputLabel}>Deadline</Text>
+                                <View style={styles.dateTimeButtonsContainer}>
+                                    <TouchableOpacity
+                                        style={styles.dateTimeButton}
+                                        onPress={() => {
+                                            // Ensure any existing picker is closed first
+                                            setShowPicker(false);
+                                            // Use setTimeout to ensure the previous picker is fully closed
+                                            setTimeout(() => {
+                                                setPickerMode('date');
+                                                setShowPicker(true);
+                                            }, 100);
+                                        }}
+                                    >
+                                        <Icon name="calendar" type="feather" size={16} color="#007AFF" />
+                                        <Text style={styles.dateTimeButtonText}>Select Date</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={styles.dateTimeButton}
+                                        onPress={() => {
+                                            // Ensure any existing picker is closed first
+                                            setShowPicker(false);
+                                            // Use setTimeout to ensure the previous picker is fully closed
+                                            setTimeout(() => {
+                                                setPickerMode('time');
+                                                setShowPicker(true);
+                                            }, 100);
+                                        }}
+                                    >
+                                        <Icon name="clock" type="feather" size={16} color="#007AFF" />
+                                        <Text style={styles.dateTimeButtonText}>Select Time</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={styles.selectedDeadlineContainer}>
+                                    <Text style={styles.selectedDeadlineText}>
+                                        {format(deadlineDate, 'dd/MM/yyyy - hh:mm a')}
+                                    </Text>
+                                </View>
+
+                                {showPicker && (
+                                    <DateTimePicker
+                                        testID="dateTimePicker"
+                                        value={deadlineDate}
+                                        mode={pickerMode}
+                                        is24Hour={false}
+                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                        onChange={(_, selectedDate) => {
+                                            // Always hide the picker on Android after selection
+                                            if (Platform.OS === 'android') {
+                                                setShowPicker(false);
+                                            }
+
+                                            // Update the date if a selection was made
+                                            if (selectedDate) {
+                                                // For iOS, if in date mode, switch to time mode after date selection
+                                                if (Platform.OS === 'ios' && pickerMode === 'date') {
+                                                    setPickerMode('time');
+                                                    // Create a new date with the selected date but keep current time
+                                                    const updatedDate = new Date(selectedDate);
+                                                    updatedDate.setHours(deadlineDate.getHours());
+                                                    updatedDate.setMinutes(deadlineDate.getMinutes());
+                                                    setDeadlineDate(updatedDate);
+                                                }
+                                                // For iOS, if in time mode, hide picker after time selection
+                                                else if (Platform.OS === 'ios' && pickerMode === 'time') {
+                                                    setShowPicker(false);
+                                                    // Create a new date with the current date but selected time
+                                                    const updatedDate = new Date(deadlineDate);
+                                                    updatedDate.setHours(selectedDate.getHours());
+                                                    updatedDate.setMinutes(selectedDate.getMinutes());
+                                                    setDeadlineDate(updatedDate);
+                                                }
+                                                // For Android, update the date directly
+                                                else {
+                                                    setDeadlineDate(selectedDate);
+                                                }
+                                            }
+                                        }}
+                                    />
+                                )}
+                            </View>
+
+                            <TouchableOpacity
+                                style={styles.saveButton}
+                                onPress={handleUpdateTask}
+                            >
+                                <Text style={styles.saveButtonText}>Update Task</Text>
                             </TouchableOpacity>
                         </View>
-
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.inputLabel}>Task Heading</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editHeading}
-                                onChangeText={setEditHeading}
-                                placeholderTextColor="#000000"
-                            />
-
-                            <Text style={styles.inputLabel}>Description</Text>
-                            <TextInput
-                                style={[styles.input, styles.textArea]}
-                                value={editDescription}
-                                onChangeText={setEditDescription}
-                                multiline={true}
-                                numberOfLines={4}
-                                placeholderTextColor="#000000"
-                            />
-
-                            <Text style={styles.inputLabel}>Deadline</Text>
-                            <View style={styles.dateTimeButtonsContainer}>
-                                <TouchableOpacity
-                                    style={styles.dateTimeButton}
-                                    onPress={() => {
-                                        // Ensure any existing picker is closed first
-                                        setShowPicker(false);
-                                        // Use setTimeout to ensure the previous picker is fully closed
-                                        setTimeout(() => {
-                                            setPickerMode('date');
-                                            setShowPicker(true);
-                                        }, 100);
-                                    }}
-                                >
-                                    <Icon name="calendar" type="feather" size={16} color="#007AFF" />
-                                    <Text style={styles.dateTimeButtonText}>Select Date</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.dateTimeButton}
-                                    onPress={() => {
-                                        // Ensure any existing picker is closed first
-                                        setShowPicker(false);
-                                        // Use setTimeout to ensure the previous picker is fully closed
-                                        setTimeout(() => {
-                                            setPickerMode('time');
-                                            setShowPicker(true);
-                                        }, 100);
-                                    }}
-                                >
-                                    <Icon name="clock" type="feather" size={16} color="#007AFF" />
-                                    <Text style={styles.dateTimeButtonText}>Select Time</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.selectedDeadlineContainer}>
-                                <Text style={styles.selectedDeadlineText}>
-                                    {format(deadlineDate, 'dd/MM/yyyy - hh:mm a')}
-                                </Text>
-                            </View>
-
-                            {showPicker && (
-                                <DateTimePicker
-                                    testID="dateTimePicker"
-                                    value={deadlineDate}
-                                    mode={pickerMode}
-                                    is24Hour={false}
-                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                    onChange={(_, selectedDate) => {
-                                        // Always hide the picker on Android after selection
-                                        if (Platform.OS === 'android') {
-                                            setShowPicker(false);
-                                        }
-
-                                        // Update the date if a selection was made
-                                        if (selectedDate) {
-                                            // For iOS, if in date mode, switch to time mode after date selection
-                                            if (Platform.OS === 'ios' && pickerMode === 'date') {
-                                                setPickerMode('time');
-                                                // Create a new date with the selected date but keep current time
-                                                const updatedDate = new Date(selectedDate);
-                                                updatedDate.setHours(deadlineDate.getHours());
-                                                updatedDate.setMinutes(deadlineDate.getMinutes());
-                                                setDeadlineDate(updatedDate);
-                                            }
-                                            // For iOS, if in time mode, hide picker after time selection
-                                            else if (Platform.OS === 'ios' && pickerMode === 'time') {
-                                                setShowPicker(false);
-                                                // Create a new date with the current date but selected time
-                                                const updatedDate = new Date(deadlineDate);
-                                                updatedDate.setHours(selectedDate.getHours());
-                                                updatedDate.setMinutes(selectedDate.getMinutes());
-                                                setDeadlineDate(updatedDate);
-                                            }
-                                            // For Android, update the date directly
-                                            else {
-                                                setDeadlineDate(selectedDate);
-                                            }
-                                        }
-                                    }}
-                                />
-                            )}
-                        </View>
-
-                        <TouchableOpacity
-                            style={styles.saveButton}
-                            onPress={handleUpdateTask}
-                        >
-                            <Text style={styles.saveButtonText}>Update Task</Text>
-                        </TouchableOpacity>
                     </View>
-                </View>
-            </Modal>
+                </Modal>
+            {/* </ScrollView> */}
         </View>
     );
 }
@@ -1195,6 +1327,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 10,
     },
+    // scrollContainer: {
+    //     flex: 1,
+    //     backgroundColor: '#f0f0f0',
+    //     width: '100%'
+    // },
+    // Modal styles
     modalOverlay: {
         flex: 1,
         justifyContent: 'center',
