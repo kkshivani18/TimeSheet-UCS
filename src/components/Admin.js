@@ -246,7 +246,7 @@ export default function Admin({ navigation }) {
                 <View style={styles.pickerContainer}>
                     <Picker
                         selectedValue={selectedMonth}
-                        style={styles.pickerMonYr}
+                        style={styles.pickerMonYr} 
                         onValueChange={handleMonthChange}
                     >
                         {months.map((month) => (
