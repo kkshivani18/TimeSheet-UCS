@@ -651,7 +651,7 @@ export default function Tasks({ route, navigation }) {
 
         setSelectedMonth(newMonth);
         setSelectedYear(newYear);
-        setMonthlyTasksLoaded(false); // Reset to trigger a new fetch
+        setMonthlyTasksLoaded(false); 
     };
 
     // Function to navigate to next month
@@ -677,7 +677,7 @@ export default function Tasks({ route, navigation }) {
     // Render monthly tasks as individual cards
         const renderMonthlyTasksList = () => {
             return (
-                <View style={styles.monthlyTasksContainer}>
+                <>
                     <View style={styles.monthSelectorContainer}>
                         <TouchableOpacity
                             style={styles.monthNavigationButton}
@@ -706,9 +706,11 @@ export default function Tasks({ route, navigation }) {
                             data={sortTasksByDate(monthlyTasks)}
                             renderItem={renderTask}
                             keyExtractor={(item) => item._id}
-                            contentContainerStyle={{ paddingBottom: 100 }}
-                            style={{ flex: 1 }} 
+                            contentContainerStyle={styles.flatListContent}
+                            style={styles.flatListStyle} 
                             showsVerticalScrollIndicator={true}
+                            nestedScrollEnabled={true}
+                            removeClippedSubviews={false}
                             ListEmptyComponent={() => (
                                 <View style={styles.noTasksContainer}>
                                     <Text style={styles.noTasksText}>No tasks for {getSelectedMonthName()} {selectedYear}</Text>
@@ -716,7 +718,7 @@ export default function Tasks({ route, navigation }) {
                             )}
                         />
                     )}
-                </View>
+                </>
             );
         };
 
@@ -731,121 +733,7 @@ export default function Tasks({ route, navigation }) {
     };
 
     return (
-        // <View style={styles.container}>
-        //     <View style={styles.header}>
-        //         <View style={styles.headerLeft}>
-        //             {(isAdminView || userRole === "admin") ? (
-        //                 <TouchableOpacity
-        //                     onPress={() => {
-        //                         if (isAdminView && viewingUserId !== user?.userId) {
-        //                             navigation.navigate("Admin"); // Admin viewing users' tasks → Go to Admin Dashboard
-        //                         } else {
-        //                             // Admin viewing their own tasks → Go back to previous screen
-        //                             if (navigation.canGoBack()) {
-        //                                 navigation.goBack();
-        //                             } else {
-        //                                 navigation.navigate("AdminTasks");
-        //                             }
-
-        //                         }
-        //                     }}
-        //                     style={styles.backButton}
-        //                 >
-        //                     <Icon name="arrow-left" type="feather" size={18} color="#333" />
-        //                 </TouchableOpacity>
-        //             ) : showMenu && (
-        //                 <TouchableOpacity onPress={() => navigation.openDrawer()}>
-        //                     <Icon name="menu" size={25} color="#333" />
-        //                 </TouchableOpacity>
-        //             )}
-        //         </View>
-
-        //         <View style={styles.headerCenter}>
-        //             <Text style={styles.title}>
-        //                 {selectedDate ? (
-        //                     isAdminView
-        //                         ? `${viewingUsername}'s Tasks - ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
-        //                         : `Tasks for ${format(new Date(selectedDate), 'dd/MM/yyyy')}`
-        //                 ) : (
-        //                     isAdminView
-        //                         ? `${viewingUsername}'s Tasks`
-        //                         : 'Tasks'
-        //                 )}
-        //             </Text>
-        //         </View>
-
-        //         <View style={styles.headerRight}>
-        //             <TouchableOpacity onPress={handleLogout}>
-        //                 <Icon name="logout" size={25} color="#333" />
-        //             </TouchableOpacity>
-        //         </View>
-        //     </View>
-
-        //     {/* Navigation buttons */}
-        //     <View style={styles.navigationButtonsContainer}>
-        //         <TouchableOpacity
-        //             style={[styles.navigationButton, selectedDate ? styles.activeNavigationButton : {}]}
-        //             onPress={() => {
-        //                 // Check admin view and navigate accordingly
-
-        //                 if (isAdminView) {
-        //                     // admin viewing a user's tasks, go to Admin dashboard
-        //                     navigation.navigate('Admin');
-        //                 }
-
-        //                 else if (userRole === 'admin') {
-        //                   // admin is viewing own tasks (ideally should go to AdminTasks but giving the navigation.openDrawer error) - (temp fix)
-        //                     navigation.navigate('Admin');
-        //                 }
-
-        //                 else if(userRole !== 'admin') {
-        //                     // Regular user goes to Dashboard
-        //                     navigation.navigate('Dashboard');
-        //                 }
-        //             }}
-        //         >
-        //             <Icon name="calendar" type="feather" size={16} color={selectedDate ? "#fff" : "#007AFF"} />
-        //             <Text style={[styles.navigationButtonText, selectedDate ? styles.activeNavigationButtonText : {}]}>Select Day</Text>
-        //         </TouchableOpacity>
-
-        //         <TouchableOpacity
-        //             style={[styles.navigationButton, !selectedDate ? styles.activeNavigationButton : {}]}
-        //             onPress={() => {
-        //                 // Clear selectedDate to show monthly view
-        //                 setSelectedDate(null);
-        //                 // Ensure monthly tasks are loaded
-        //                 if (!monthlyTasksLoaded) {
-        //                     fetchMonthlyTasks();
-        //                 }
-        //             }}
-        //         >
-        //             <Icon name="calendar-range" type="material-community" size={16} color={!selectedDate ? "#fff" : "#007AFF"} />
-        //             <Text style={[styles.navigationButtonText, !selectedDate ? styles.activeNavigationButtonText : {}]}>Month View</Text>
-        //         </TouchableOpacity>
-        //     </View>
-
-        //     {/* <ScrollView 
-        //         style={styles.scrollContainer}
-        //         contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }}
-        //     > */}
-        //         {loading ? (
-        //             <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
-        //         ) : !selectedDate && monthlyTasksLoaded ? (
-        //             renderMonthlyTasksList()
-        //         ) : tasks.length === 0 ? (
-        //             <View style={styles.noTasksContainer}>
-        //                 <Text style={styles.noTasksText}>No tasks for this date</Text>
-        //             </View>
-        //         ) : (
-        //             <FlatList
-        //             data={tasks}
-        //             renderItem={renderTask}
-        //             keyExtractor={(item) => item._id}
-        //             />
-        //         )}
-
-
-                <View style={styles.container}>
+            <View style={styles.container}>
                 <View style={styles.header}>
                     <View style={styles.headerLeft}>
                         {(isAdminView || userRole === "admin") ? (
@@ -925,33 +813,39 @@ export default function Tasks({ route, navigation }) {
                     </TouchableOpacity>
                 </View>
 
-                {/* Main content area with proper flex */}
-                <View style={{ flex: 1 }}>
-                    {loading ? (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color="#007AFF" />
-                        </View>
-                    ) : !selectedDate && monthlyTasksLoaded ? (
-                        renderMonthlyTasksList()
-                    ) : tasks.length === 0 ? (
-                        <View style={styles.noTasksContainer}>
-                            <Text style={styles.noTasksText}>No tasks for this date</Text>
-                        </View>
-                    ) : (
-                        <FlatList
-                            data={tasks}
-                            renderItem={renderTask}
-                            keyExtractor={(item) => item._id}
-                            contentContainerStyle={{ paddingBottom: 100 }}
-                            showsVerticalScrollIndicator={true}
-                        />
-                    )}
-                </View>
+                {/* Main content  */}
+                    {/* <View style={styles.mainContentContainer}> */}
+                        {loading ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color="#007AFF" />
+                            </View>
+                        ) : !selectedDate && monthlyTasksLoaded ? (
+                            <View style={styles.monthlyTasksWrapper}>
+                                {renderMonthlyTasksList()}
+                            </View>
+                        ) : tasks.length === 0 ? (
+                            <View style={styles.noTasksContainer}>
+                                <Text style={styles.noTasksText}>No tasks for this date</Text>
+                            </View>
+                        ) : (
+                            <View style={styles.dailyTasksWrapper}>
+                                <FlatList
+                                    data={tasks}
+                                    renderItem={renderTask}
+                                    keyExtractor={(item) => item._id}
+                                    contentContainerStyle={styles.flatListContent}
+                                    style={styles.flatListStyle}
+                                    showsVerticalScrollIndicator={true}
+                                    nestedScrollEnabled={true}
+                                />
+                            </View>
+                        )}
+                    {/* </View> */}
 
-                {/* floating "+" button */}
-                <TouchableOpacity style={styles.addButton} onPress={handleAddTask}>
-                    <Icon name="add" size={30} color="white" />
-                </TouchableOpacity>
+                    {/* floating "+" button */}
+                    <TouchableOpacity style={styles.addButton} onPress={handleAddTask}>
+                        <Icon name="add" size={30} color="white" />
+                    </TouchableOpacity>
 
                 {/* add task modal */}
                 <Modal
@@ -1222,10 +1116,9 @@ export default function Tasks({ route, navigation }) {
                         </View>
                     </View>
                 </Modal>
-            {/* </ScrollView> */}
-        </View>
-    );
-}
+            </View>
+        );
+    }
 
 const styles = StyleSheet.create({
     backButton: {
@@ -1236,13 +1129,14 @@ const styles = StyleSheet.create({
         padding: 10,
         zIndex: 10,
         marginTop: -43
-
     },
     container: {
         flex: 1,
         padding: 16,
         backgroundColor: '#f0f0f0',
-        marginTop: 5,
+        // marginTop: 5,
+        paddingTop: 5,
+        paddingHorizontal: 16
     },
     header: {
         width: '100%',
@@ -1280,6 +1174,30 @@ const styles = StyleSheet.create({
     },
     listContainer: {
         padding: 8,
+    },
+    // mainContentContainer: {
+    //     flex: 1,
+    //     width: '100%',
+    // },
+    monthlyTasksWrapper: {
+        flex: 1,
+        width: '100%',
+        backgroundColor: '#f0f0f0'
+    },
+    dailyTasksWrapper: {
+        flex: 1,
+        width: '100%',
+        backgroundColor: '#f0f0f0'
+    },
+    flatListStyle: {
+        flex: 1,
+        width: '100%',
+        backgroundColor: 'transparent'
+    },
+    flatListContent: {
+        paddingBottom: 100,
+        // flexGrow: 1,
+        paddingTop: 8
     },
     taskCard: {
         backgroundColor: 'white',
@@ -1405,7 +1323,8 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f0f0f0',
+        // backgroundColor: '#f0f0f0',
+        backgroundColor: 'transparent'
     },
     taskHeaderLeft: {
         flexDirection: 'row',
@@ -1428,6 +1347,8 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: 'transparent',
+        paddingTop: 50
     },
     noTasksText: {
         fontSize: 16,
@@ -1465,6 +1386,7 @@ const styles = StyleSheet.create({
     monthlyTasksContainer: {
         flex: 1,
         width: '100%',
+        backgroundColor: 'transparent'
     },
     monthTitle: {
         fontSize: 18,
