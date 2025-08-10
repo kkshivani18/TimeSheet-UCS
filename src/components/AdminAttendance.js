@@ -246,12 +246,172 @@ export default function AdminAttendance({ navigation }) {
         }
     };
 
+    // const handleHolidaysUpload = async (holidays) => {
+    //     try {
+    //         console.log('Starting file picker...');
+    //         setIsLoading(true);
+
+    //         // expo DocumentPicker for mobile platforms
+    //         const result = await DocumentPicker.getDocumentAsync({
+    //             type: '*/*', 
+    //             copyToCacheDirectory: true
+    //         });
+
+    //         console.log('DocumentPicker result:', result);
+
+    //         if (result.canceled) {
+    //             console.log('File picking cancelled');
+    //             setIsLoading(false);
+    //             return;
+    //         }
+
+    //         let file = null;
+
+    //         if (Platform.OS === 'web') {
+    //             if (result.output && result.output.length > 0) {
+    //                 file = result.output[0]; 
+    //             } else if (result.assets && result.assets.length > 0) {
+    //                 file = result.assets[0];
+    //             }
+    //         } else { 
+    //             // Native (iOS/Android)
+    //             if (result.assets && result.assets.length > 0) {
+    //                 file = result.assets[0];
+    //             }
+    //         }
+
+    //         if (!file) {
+    //             console.log('No file selected or file selection failed.');
+    //             Alert.alert('File Selection Failed', 'No file was selected or there was an issue picking the file. Please try again.');
+    //             setIsLoading(false);
+    //             return;
+    //         }
+
+    //         let fileContent;
+
+    //         if (Platform.OS === 'web') {
+    //             if (file && file.uri) {
+    //                try {
+    //                     const response = await fetch(file.uri);
+    //                     if (!response.ok) {
+    //                         throw new Error(`HTTP error! status: ${response.status}`);
+    //                     }
+    //                     fileContent = await response.text();
+    //                 } catch (fetchError) {
+    //                     console.error('Error fetching file content from URI:', fetchError);
+    //                     Alert.alert('Error', 'Failed to read file content from URI.');
+    //                     setIsLoading(false);
+    //                     return;
+    //                 }
+    //             } else if (file instanceof Blob) {
+    //                 // Fallback to FileReader if it's a plain Blob/File without a readable URI
+    //                 fileContent = await new Promise((resolve, reject) => {
+    //                     const reader = new FileReader();
+    //                     reader.onload = (event) => resolve(event.target.result);
+    //                     reader.onerror = (error) => reject(error);
+    //                     reader.readAsText(file);
+    //                 });
+    //             } else {
+    //                 Alert.alert('Error', 'Invalid file object for web processing. Missing URI or Blob.');
+    //                 setIsLoading(false);
+    //                 return;
+    //             }
+    //         } else { 
+    //             // Native
+    //             fileContent = await FileSystem.readAsStringAsync(file.uri);
+    //         }
+            
+    //         console.log('File content:', fileContent);
+            
+    //         const lines = fileContent.split('\n');
+    //         console.log('Number of lines:', lines.length);
+            
+    //         let successCount = 0;
+    //         let errorCount = 0;
+    //         let processedHolidays = [];
+            
+    //         // Skip header row
+    //         for (let i = 1; i < lines.length; i++) {
+    //             const line = lines[i].trim();
+    //             if (!line) continue;
+
+    //             console.log('Processing line:', line);
+    //             const [date, description] = line.split(',').map(item => item.trim());
+                
+    //             if (!date || !description) {
+    //                 console.log('Skipping invalid line - missing date or description');
+    //                 errorCount++;
+    //                 continue;
+    //             }
+
+    //             // Parse date (DD/MM/YYYY)
+    //             const parsedDate = parse(date, 'dd/MM/yyyy', new Date());
+    //             if (!isValid(parsedDate)) {
+    //                 console.error(`Invalid date format: ${date}`);
+    //                 errorCount++;
+    //                 continue;
+    //             }
+
+    //             const formattedDate = format(parsedDate, 'dd-MM');
+    //             const year = parsedDate.getFullYear();
+
+    //             const holidayData = {
+    //                 date: formattedDate,
+    //                 description,
+    //                 year,
+    //                 createdAt: new Date().toISOString(),
+    //                 createdBy: FIREBASE_AUTH.currentUser?.email
+    //             };
+
+    //             console.log('Adding holidays to MongoDB:', holidayData);
+
+    //             try {
+    //                 const response = await axios.post('http://localhost:3000/api/holidays/upload', { holidays });
+    //                 if (response.data.success) {
+    //                     Alert.alert('Success', 'Holidays uploaded successfully');
+    //                 } else {
+    //                     Alert.alert('Error', response.data.message || 'Failed to upload holidays');
+    //                 }
+    //             } catch (error) {
+    //                 console.error('Error uploading holidays:', error);
+    //                 Alert.alert('Error', 'Failed to upload holidays');
+    //             }
+    //         };
+
+    //         console.log(`Upload complete. Success: ${successCount}, Errors: ${errorCount}`);
+    //         console.log('Processed holidays:', processedHolidays);
+            
+    //         if (successCount > 0) {
+    //             Alert.alert(
+    //                 'Success', 
+    //                 `Successfully uploaded ${successCount} holidays${errorCount > 0 ? ` (${errorCount} errors)` : ''}\n\nFirst few holidays:\n${processedHolidays.slice(0, 3).map(h => `${h.date}: ${h.description}`).join('\n')}`
+    //             );
+                
+    //             // Verify the upload by fetching the holidays
+    //             console.log('Verifying upload by fetching holidays...');
+    //             await fetchPaidHolidays();
+    //             console.log('Current paid holidays:', paidHolidays);
+                
+    //             await fetchWeeklyAttendance();
+    //         } else {
+    //             Alert.alert('Error', 'No holidays were uploaded');
+    //         }
+    //     } catch (error) {
+    //         console.error('Error in handleHolidaysUpload:', error);
+    //         Alert.alert('Error', `Failed to upload holidays file: ${error.message}`);
+    //     } finally {
+    //         setIsLoading(false);
+    //     }
+    // };
+
+
+    // holiday upload
     const handleHolidaysUpload = async () => {
         try {
             console.log('Starting file picker...');
             setIsLoading(true);
 
-            // Expo DocumentPicker for mobile platforms
+            // expo DocumentPicker for mobile platforms
             const result = await DocumentPicker.getDocumentAsync({
                 type: '*/*', 
                 copyToCacheDirectory: true
@@ -269,7 +429,7 @@ export default function AdminAttendance({ navigation }) {
 
             if (Platform.OS === 'web') {
                 if (result.output && result.output.length > 0) {
-                    file = result.output[0]; // File/Blob
+                    file = result.output[0]; 
                 } else if (result.assets && result.assets.length > 0) {
                     file = result.assets[0];
                 }
@@ -291,7 +451,7 @@ export default function AdminAttendance({ navigation }) {
 
             if (Platform.OS === 'web') {
                 if (file && file.uri) {
-                   try {
+                try {
                         const response = await fetch(file.uri);
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
@@ -330,7 +490,7 @@ export default function AdminAttendance({ navigation }) {
             let errorCount = 0;
             let processedHolidays = [];
             
-            // Skip header row
+            // skip header row
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
@@ -352,6 +512,7 @@ export default function AdminAttendance({ navigation }) {
                     continue;
                 }
 
+                const userId = await AsyncStorage.getItem('userId');
                 const formattedDate = format(parsedDate, 'dd-MM');
                 const year = parsedDate.getFullYear();
 
@@ -360,41 +521,43 @@ export default function AdminAttendance({ navigation }) {
                     description,
                     year,
                     createdAt: new Date().toISOString(),
-                    createdBy: FIREBASE_AUTH.currentUser?.email
+                    createdBy: `${userId}`
                 };
 
-                console.log('Adding holiday to Firestore:', holidayData);
-
-                try {
-                    // Add to Firestore
-                    const docRef = await addDoc(collection(FIRESTORE_DB, 'paidHolidays'), holidayData);
-                    console.log('Successfully added holiday with ID:', docRef.id);
-                    successCount++;
-                    processedHolidays.push(holidayData);
-                } catch (firestoreError) {
-                    console.error('Error adding to Firestore:', firestoreError);
-                    errorCount++;
-                }
+                processedHolidays.push(holidayData);
+                successCount++;
             }
 
-            console.log(`Upload complete. Success: ${successCount}, Errors: ${errorCount}`);
             console.log('Processed holidays:', processedHolidays);
-            
-            if (successCount > 0) {
-                Alert.alert(
-                    'Success', 
-                    `Successfully uploaded ${successCount} holidays${errorCount > 0 ? ` (${errorCount} errors)` : ''}\n\nFirst few holidays:\n${processedHolidays.slice(0, 3).map(h => `${h.date}: ${h.description}`).join('\n')}`
-                );
-                
-                // Verify the upload by fetching the holidays
-                console.log('Verifying upload by fetching holidays...');
-                await fetchPaidHolidays();
-                console.log('Current paid holidays:', paidHolidays);
-                
-                await fetchWeeklyAttendance();
-            } else {
-                Alert.alert('Error', 'No holidays were uploaded');
+
+            if (processedHolidays.length === 0) {
+                Alert.alert('Error', 'No valid holidays found in the file');
+                setIsLoading(false);
+                return;
             }
+
+            // Send the processed holidays array to the backend
+            try {
+                const response = await axios.post('http://localhost:3000/api/holidays/upload', { 
+                    holidays: processedHolidays 
+                });
+                
+                if (response.data.success) {
+                    Alert.alert('Success', `Successfully uploaded ${successCount} holidays${errorCount > 0 ? ` (${errorCount} errors)` : ''}`);
+                    
+                    // Refresh the holidays data
+                    await fetchPaidHolidays();
+                    if (selectedUser) {
+                        await fetchWeeklyAttendance();
+                    }
+                } else {
+                    Alert.alert('Error', response.data.message || 'Failed to upload holidays');
+                }
+            } catch (uploadError) {
+                console.error('Error uploading holidays:', uploadError);
+                Alert.alert('Error', 'Failed to upload holidays to server');
+            }
+
         } catch (error) {
             console.error('Error in handleHolidaysUpload:', error);
             Alert.alert('Error', `Failed to upload holidays file: ${error.message}`);
@@ -403,8 +566,9 @@ export default function AdminAttendance({ navigation }) {
         }
     };
 
+
     // renderAttendanceRow func to include holiday styling
-        const renderAttendanceRow = ({ item, index }) => {
+    const renderAttendanceRow = ({ item, index }) => {
         const isWeekend = item.dayOfWeek === 'Sun' || item.dayOfWeek === 'Sat';
         const isHoliday = item.isHoliday;
         const hasCheckedIn = item.checkInTime !== null && item.checkInTime !== undefined && item.checkInTime !== '';
@@ -761,8 +925,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#f0f0f0',
         width: '100%'
     },
-
-    // Section container matching Attendance.js
     sectionContainer: {
         backgroundColor: 'white',
         borderRadius: 15,

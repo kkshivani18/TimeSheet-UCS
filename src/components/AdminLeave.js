@@ -71,6 +71,11 @@ export default function AdminLeave({ navigation }) {
 
     // handle status update 
     const handleUpdateStatus = async (id, status) => {
+        const currentReq = leaveRequests.find(req => req._id === id);
+        if (currentReq && currentReq.status === 'Approved'){
+            Alert.alert("Cannot Modify", "Once approved, status of leave application cannot be changed");
+            return;
+        }
         try {
             const response = await axios.put(`http://localhost:3000/api/leaves/${id}/status`, {
                 status: status

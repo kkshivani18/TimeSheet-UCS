@@ -40,6 +40,7 @@ export default function Tasks({ route, navigation }) {
     // user
     const [user, setUser] = useState(null);
     const [username, setUsername] = useState('');
+    const [userId, setUserId] = useState(null);
 
     useEffect(() => {
             const fetchUserData = async () => {
@@ -92,17 +93,19 @@ export default function Tasks({ route, navigation }) {
             setSelectedDate(route.params.date);
         }
 
-        if (route.params?.isAdminView) {
-            setIsAdminView(true);
-            setViewingUserId(route.params.userId);
-            setViewingUsername(route.params.username);
-        } else {
-            const getCurrentUserId = async () => {
-                const userId = await AsyncStorage.getItem('userId');
-                setViewingUserId(userId);
-            };
-            getCurrentUserId();
+        const setUserId = async () => {
+            const currentUserId = await AsyncStorage.getItem('userId');
+            if (route.params?.isAdminView) {
+                setIsAdminView(true);
+                setViewingUserId(route.params.userId);
+                setViewingUsername(route.params.username);
+            }
+            else {
+                setIsAdminView(false);
+                setViewingUserId(currentUserId);
+            }
         }
+        setUserId();
     }, [route.params]);
 
 
@@ -308,7 +311,7 @@ export default function Tasks({ route, navigation }) {
                     deadline: formattedDeadline,
                     date: selectedDate,
                     completed: false,
-                    createdBy: "admin"
+                    createdBy: viewingUserId || "admin"
                 };
             } else {
                 // user or admin creating task for oneself - user/create endpoint
@@ -703,8 +706,8 @@ export default function Tasks({ route, navigation }) {
                             data={sortTasksByDate(monthlyTasks)}
                             renderItem={renderTask}
                             keyExtractor={(item) => item._id}
-                            style={{ flex: 1 }} 
                             contentContainerStyle={{ paddingBottom: 100 }}
+                            style={{ flex: 1 }} 
                             showsVerticalScrollIndicator={true}
                             ListEmptyComponent={() => (
                                 <View style={styles.noTasksContainer}>

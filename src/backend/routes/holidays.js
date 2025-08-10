@@ -39,9 +39,14 @@ router.get('/:year', async (req, res) => {
 router.post('/upload', async (req, res) => {
   try {
     const { holidays } = req.body;
-    const result = await Holiday.insertMany(holidays);
-    res.json({ message: `${result.length} holidays uploaded successfully` });
+    if (!Array.isArray(holidays)) {
+      return res.status(400).json({ success: false, message: 'Invalid data'});
+    }
+    await Holiday.insertMany(holidays);
+
+    res.json({success: true, message: "Holidays uploaded successfully"});
   } catch (err) {
+    console.log('Error uploading holidays: ', err);
     res.status(500).json({ error : err.message });
   }
 })
