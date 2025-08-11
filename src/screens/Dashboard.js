@@ -78,7 +78,7 @@ export default function Dashboard({ navigation }) {
 
     
     // Fetch leaves from backend
-    const fetchLeavesFromBackend = async (userId, year, month) => {
+    const fetchLeaves = async (userId, year, month) => {
         try {
           const token = await AsyncStorage.getItem('token');
           const response = await axios.get(
@@ -121,7 +121,7 @@ export default function Dashboard({ navigation }) {
           if (!userId) return;
       
           // Fetch leaves from backend
-          const leavesArr = await fetchLeavesFromBackend(userId, selectedYear, selectedMonth);
+          const leavesArr = await fetchLeaves(userId, selectedYear, selectedMonth);
           setLeaves(leavesArr);
       
           // Process leaves to date map
@@ -136,121 +136,61 @@ export default function Dashboard({ navigation }) {
         fetchData();
       }, [selectedMonth, selectedYear]);
 
-    // Function to fetch attendance data
+    // fetch attendance data
     const fetchAttendanceData = async () => {
         if (!user) return {};
 
         try {
-            // Minimal debug info
-            console.log(`Fetching attendance for: ${user.email} (Month: ${selectedMonth}/${selectedYear})`);
+            const token = await AsyncStorage.getItem('token');
+            const userId = await AsyncStorage.getItem('userId');
+            
+            // Format month and year for API call
+            const formattedMonth = selectedMonth.toString().padStart(2, '0');
+            const formattedYear = selectedYear.toString();
 
-            // Query all attendance documents for this user in the selected month
-            const attendanceQuery = query(
-                collection(FIRESTORE_DB, 'attendance'),
-                where('userId', '==', user.uid)
+            // Fetch attendance from backend API
+            const response = await axios.get(
+                `http://localhost:3000/api/attendance/${userId}/${formattedYear}/${formattedMonth}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
             );
-
-            const querySnapshot = await getDocs(attendanceQuery);
-            console.log(`Found ${querySnapshot.size} attendance records`);
 
             const attendanceData = {};
 
-            // Process each attendance record
-            querySnapshot.forEach(doc => {
-                const attendance = doc.data();
+            // attendance record
+            response.data.forEach(attendance => {
+                // date string to ISO format for calendar
+                const dateStr = new Date(attendance.date).toISOString().split('T')[0];
 
-                // Skip if no check-in or check-out time
-                if (!attendance.checkInTime || !attendance.checkOutTime) return;
-
-                // Handle different date formats (MM/DD/YYYY or DD/MM/YYYY)
-                let attendanceDate;
-                if (attendance.date.includes('/')) {
-                    // Split the date string and create a date object
-                    const dateParts = attendance.date.split('/');
-                    if (dateParts.length === 3) {
-                        // Check if first part is likely a month (1-12) or day (1-31)
-                        const firstPart = parseInt(dateParts[0]);
-                        if (firstPart > 12) {
-                            // Likely DD/MM/YYYY format
-                            attendanceDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
-                        } else {
-                            // Likely MM/DD/YYYY format
-                            attendanceDate = new Date(dateParts[2], dateParts[0] - 1, dateParts[1]);
-                        }
-                    }
-                } else {
-                    // Try to parse as ISO date
-                    attendanceDate = new Date(attendance.date);
-                }
-
-                // Ensure we have a valid date
-                if (!attendanceDate || isNaN(attendanceDate.getTime())) {
-                    console.log("Invalid date format:", attendance.date);
-                    return;
-                }
-
-                const dateStr = attendanceDate.toISOString().split('T')[0];
-
-                // Check if the date is in the selected month
-                const attendanceMonth = attendanceDate.getMonth() + 1;
-                const attendanceYear = attendanceDate.getFullYear();
-                if (attendanceMonth !== selectedMonth || attendanceYear !== selectedYear) return;
-
-                // Calculate worked hours
+                // worked hours and minutes
                 let workedHours = 0;
+                let minutes = 0;
 
                 if (attendance.totalWorkedMinutes) {
-                    workedHours = attendance.totalWorkedMinutes / 60;
-                }
-                // Otherwise calculate from check-in and check-out times
-                else if (attendance.checkInTime && attendance.checkOutTime) {
+                    minutes = Number(attendance.totalWorkedMinutes);
+                    workedHours = minutes / 60;
+                } else if (attendance.checkInTime && attendance.checkOutTime) {
                     const checkInTime = new Date(attendance.checkInTime);
                     const checkOutTime = new Date(attendance.checkOutTime);
-
-                    // Calculate difference in milliseconds
                     const diffMs = checkOutTime - checkInTime;
-
-                    // Convert to hours
                     workedHours = diffMs / (1000 * 60 * 60);
-                }
-
-                // Store the totalWorkedMinutes
-                let minutes;
-
-                if (attendance.totalWorkedMinutes !== undefined && attendance.totalWorkedMinutes !== null) {
-                    // Convert to number to ensure proper type
-                    minutes = Number(attendance.totalWorkedMinutes);
-                } else {
-                    // Calculate from worked hours
                     minutes = Math.floor(workedHours * 60);
                 }
 
-                // Validate that minutes is a valid number
+                // validate minutes
                 if (isNaN(minutes)) {
                     minutes = 0;
                 }
 
-                // filter for 8+ hours (480+ minutes) in getCurrentMonthDays
+                // store attendance data
                 attendanceData[dateStr] = {
                     workedHours: workedHours,
                     totalWorkedMinutes: minutes,
                     status: minutes >= 480 ? 'fullDay' : 'partialDay'
                 };
-
             });
 
-            // Add a test record for today to ensure we have at least one day with 8+ hours
-            const today = new Date();
-            const todayStr = today.toISOString().split('T')[0];
-
-            // Only add test data if we're viewing the current month
-            if (today.getMonth() + 1 === selectedMonth && today.getFullYear() === selectedYear) {
-                attendanceData[todayStr] = {
-                    workedHours: 9,
-                    totalWorkedMinutes: 540, 
-                    status: 'fullDay'
-                };
-            }
             return attendanceData;
         } catch (error) {
             console.error('Error fetching attendance data:', error);
@@ -260,24 +200,30 @@ export default function Dashboard({ navigation }) {
 
     useEffect(() => {
         fetchPaidHolidays();
-    }, []);
+    }, [selectedYear, selectedMonth]);
     
     const fetchPaidHolidays = async () => {
-        try {
-            const token = await AsyncStorage.getItem('token');
-            const currentYear = new Date().getFullYear();
-            const response = await axios.get(`http://localhost:3000/api/holidays/${currentYear}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            // Convert array to map if needed
-            const holidaysMap = {};
-            response.data.forEach(holiday => {
-              holidaysMap[holiday.date] = holiday.description;
+            try {
+            const response = await axios.get(`http://localhost:3000/api/holidays/${selectedYear}`);
+        
+        const holidaysMap = {};
+        response.data.forEach(holiday => {
+            const [day, month] = holiday.date.split('-');
+            const holidayDateFormatted = `${selectedYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            holidaysMap[holidayDateFormatted] = {
+                selected: true,
+                selectedColor: '#007AFF',
+                startingDay: true,
+                endingDay: true,
+                color: '#007AFF',
+                textColor: 'white',
+                description: holiday.description
+                };
             });
             setPaidHolidays(holidaysMap);
-          } catch (error) {
-            console.error('Error fetching paid holidays:', error);
-          }
+            } catch (error) {
+                console.error('Error fetching holidays:', error);
+            }
     };
 
     const getCurrentMonthDays = () => {
@@ -296,24 +242,10 @@ export default function Dashboard({ navigation }) {
 
         // Mark paid holidays (blue)
         Object.keys(paidHolidays).forEach(date => {
-            // Convert DD-MM-YYYY to YYYY-MM-DD for the calendar
-            const [day, month, year] = date.split('-');
-            const formattedDate = `${year}-${month}-${day}`;
-            
-            if (!markedDates[formattedDate]) {
-                markedDates[formattedDate] = {
-                    selected: true,
-                    selectedColor: '#007AFF',
-                    startingDay: true,
-                    endingDay: true,
-                    color: '#007AFF',
-                    textColor: 'white',
-                };
+            if (!markedDates[date]) { 
+                markedDates[date] = paidHolidays[date];
             }
         });
-        // console.log('leaveData:', leaveData);
-        // console.log('paidHolidays:', paidHolidays);
-        // console.log('markedDates:', markedDates);
 
         return markedDates;
     };

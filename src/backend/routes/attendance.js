@@ -28,7 +28,7 @@ router.get('/user/:userId', async (req, res) => {
     }
 });
 
-// Get attendance for a user on a specific date
+// get attendance for a user on a specific date
 router.get('/user/:userId/date/:date', async (req, res) => {
     try {
         const record = await Attendance.findOne({ userId: req.params.userId, date: req.params.date });
@@ -41,7 +41,7 @@ router.get('/user/:userId/date/:date', async (req, res) => {
     }
 });
 
-// Get attendance for a user within a date range
+// get attendance for a user within a date range
 router.get('/user/:userId/range', async (req, res) => {
     try {
         const { userId } = req.params;
@@ -62,6 +62,28 @@ router.get('/user/:userId/range', async (req, res) => {
         res.json(records);
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// get attendance for user by month and year
+router.get('/:userId/:year/:month', async (req, res) => {
+    try {
+        const { userId, year, month } = req.params;
+
+        // data range for query
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 0);
+
+        const attendance = await Attendance.find({
+            userId: userId,
+            date: {
+                $gte: startDate,
+                $lte: endDate
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching attendance:', error);
+        res.status(500).json({ message: 'Error fetching attendance data' });
     }
 });
 

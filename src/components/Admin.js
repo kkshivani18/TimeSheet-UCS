@@ -39,7 +39,7 @@ export default function Admin({ navigation }) {
 
     useEffect(() => {
         fetchPaidHolidays();
-    }, [selectedYear])
+    }, [selectedYear, selectedMonth])
 
     useEffect(() => {
         if (selectedUser) {

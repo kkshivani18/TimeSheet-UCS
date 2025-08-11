@@ -1260,12 +1260,12 @@ export default function Attendance({ navigation }) {
                                         {(() => {
                                             try {
                                                 const weekDate = new Date(selectedWeek);
-                                                // Ensure valid date
+                                                // ensure valid date
                                                 if (isNaN(weekDate.getTime())) {
                                                     return 'Current Week';
                                                 }
-                                                const start = startOfWeek(weekDate, { weekStartsOn: 0 });
-                                                const end = endOfWeek(weekDate, { weekStartsOn: 0 });
+                                                const start = startOfWeek(weekDate, { weekStartsOn: 1 });
+                                                const end = endOfWeek(weekDate, { weekStartsOn: 1 });
                                                 return `${format(start, 'dd MMM')} - ${format(end, 'dd MMM yyyy')}`;
                                             } catch (error) {
                                                 console.error('Error formatting week dates:', error);

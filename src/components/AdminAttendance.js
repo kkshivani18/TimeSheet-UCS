@@ -840,7 +840,7 @@ export default function AdminAttendance({ navigation }) {
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.currentWeekButton}>
                                 <Text style={styles.currentWeekText}>
-                                    {format(startOfWeek(selectedWeek, { weekStartsOn: 0 }), 'dd MMM')} - {format(endOfWeek(selectedWeek, { weekStartsOn: 0 }), 'dd MMM yyyy')}
+                                    {format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM')} - {format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM yyyy')}
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={goToNextWeek} style={styles.weekNavButton}>

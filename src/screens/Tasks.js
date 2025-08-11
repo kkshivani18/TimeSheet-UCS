@@ -311,7 +311,7 @@ export default function Tasks({ route, navigation }) {
                     deadline: formattedDeadline,
                     date: selectedDate,
                     completed: false,
-                    createdBy: viewingUserId || "admin"
+                    createdBy: currentUserId
                 };
             } else {
                 // user or admin creating task for oneself - user/create endpoint
