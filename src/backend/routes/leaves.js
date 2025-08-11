@@ -44,14 +44,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-// get all leave requests for a user
+// get leave requests for a user for their calendar attendance 
 router.get('/user/:userId', async(req, res) => {
   try {
     const { userId } = req.params;
-    const leaves = await Leave.find({ 
-      userId,
-      status: 'Approved'
-    }, ).sort({ createdAt: -1 });
+    const leaves = await Leave.find({userId: userId, status: 'Approved'}).sort({ createdAt: -1 });
     
     res.json(leaves);
   } catch (err) {
@@ -89,6 +86,18 @@ router.get('/users/:userId/leaves', async (req, res) => {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
+
+// getting all leaves for a userId
+router.get('/user/all/:userId/', async(req, res) => {
+  try {
+    const { userId } = req.params;
+    const leaves = await Leave.find({userId: userId}).sort({ createdAt: -1 });
+    
+    res.json(leaves);
+  } catch (err) {
+    res.status(500).json({error: err.message });
+  }
+})
 
 // get all leave reqs
 router.get('/all', async (req, res) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, FlatList, Modal } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, FlatList, Modal, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
 // import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
@@ -24,29 +24,43 @@ export default function LeaveApplication({ navigation }) {
     const [isFiltered, setIsFiltered] = useState(false);
     const [leaveApplicationsUnsubscribe, setLeaveApplicationsUnsubscribe] = useState(null);
     const [user, setUser] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         const fetchUserAndLeaves = async () => {
-          try {
+        setIsLoading(true);
+        try {
             const token = await AsyncStorage.getItem('token');
             const userId = await AsyncStorage.getItem('userId');
-            if (!userId) return;
-      
-            // Fetch user info if needed
+            if (!userId) {
+                console.log('No userId found');
+                return;
+            }
+            console.log('Fetching leaves for user: ', userId);
+
+            // fetch leave applications first
+            const leavesResponse = await axios.get(
+                `http://localhost:3000/api/leaves/user/all/${userId}`,
+                { 
+                    headers: { 
+                        Authorization: `Bearer ${token}` 
+                    }
+                }
+            );
+            console.log('Leaves response:', leavesResponse.data);
+            setLeaveApplications(leavesResponse.data);
+    
+            // fetch user info if needed
             const userResponse = await axios.get(`http://localhost:3000/api/user/${userId}`, {
-              headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` }
             });
             setUser(userResponse.data);
-      
-            // Fetch leave applications from backend
-            const leavesResponse = await axios.get(
-              `http://localhost:3000/api/leaves/user/${userId}`,
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-            setLeaveApplications(leavesResponse.data);
-          } catch (error) {
-            console.error('Error fetching leave applications:', error);
-          }
+            } catch (error) {
+                console.error('Error fetching leave applications:', error);
+                Alert.alert('Error', 'Failed to fetch leave applications');
+            } finally {
+                setIsLoading(false);
+            }
         };
       
         fetchUserAndLeaves();
@@ -140,7 +154,7 @@ export default function LeaveApplication({ navigation }) {
         }
     };
 
-    // Status color mapping
+    // status color mapping
     const getStatusColor = (status) => {
         switch(status.toLowerCase()) {
             case 'approved': return 'green';
@@ -162,32 +176,42 @@ export default function LeaveApplication({ navigation }) {
     };
 
     // Render individual leave application
-    const renderLeaveApplication = ({ item }) => (
-        <View style={styles.leaveApplicationCard}>
-            <View style={styles.leaveApplicationHeader}>
-                <Text style={styles.leaveApplicationDates}>
-                    {item.startDate} to {item.endDate}
+    const renderLeaveApplication = ({ item }) => {
+
+        console.log('Rendering leave application:', {
+            id: item._id,
+            status: item.status,
+            startDate: item.startDate,
+            endDate: item.endDate
+        });
+        
+        return (
+            <View style={styles.leaveApplicationCard}>
+                <View style={styles.leaveApplicationHeader}>
+                    <Text style={styles.leaveApplicationDates}>
+                        {item.startDate} to {item.endDate}
+                    </Text>
+                    <View
+                        style={[
+                            styles.statusDot,
+                            { backgroundColor: getStatusColor(item.status) }
+                        ]}
+                    />
+                </View>
+                <Text style={styles.leaveApplicationReason}>
+                    Reason: {item.reason}
                 </Text>
-                <View
-                    style={[
-                        styles.statusDot,
-                        { backgroundColor: getStatusColor(item.status) }
-                    ]}
-                />
+                <Text style={styles.leaveApplicationStatus}>
+                    Status: {item.status.toUpperCase()}
+                </Text>
+                {item.adminComment && (
+                    <Text style={styles.adminComment}>
+                        Admin Comment: {item.adminComment}
+                    </Text>
+                )}
             </View>
-            <Text style={styles.leaveApplicationReason}>
-                Reason: {item.reason}
-            </Text>
-            <Text style={styles.leaveApplicationStatus}>
-                Status: {item.status.toUpperCase()}
-            </Text>
-            {item.adminComment && (
-                <Text style={styles.adminComment}>
-                    Admin Comment: {item.adminComment}
-                </Text>
-            )}
-        </View>
-    );
+        )
+    };
 
 
     return (
@@ -302,9 +326,16 @@ export default function LeaveApplication({ navigation }) {
                     renderItem={renderLeaveApplication}
                     keyExtractor={(item) => item._id}
                     ListEmptyComponent={
-                        <Text style={styles.noApplicationsText}>
-                            No leave applications found
-                        </Text>
+                        isLoading ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color="#007AFF" />
+                                <Text style={styles.loadingText}>Loading leave applications...</Text>
+                            </View>
+                        ) : (
+                            <Text style={styles.noApplicationsText}>
+                                No leave applications found
+                            </Text>
+                        )
                     }
                 />
 
@@ -568,5 +599,16 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20
+    },
+    loadingText: {
+        marginTop: 10,
+        color: '#666',
+        fontSize: 16
     }
 });

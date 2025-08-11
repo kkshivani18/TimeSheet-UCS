@@ -284,10 +284,14 @@ export default function Attendance({ navigation }) {
 
         try {
             const date = new Date(dateTimeString);
+            if (isNaN(date.getTime())) {
+                console.log('Invalid date value', dateTimeString);
+                return 'Invalid Date'
+            }
             return format(date, 'dd-MM-yyyy HH:mm');
         } catch (error) {
             console.error('Error formatting date:', error);
-            return dateTimeString;
+            return 'Invalid Date';
         }
     };
 
@@ -297,6 +301,10 @@ export default function Attendance({ navigation }) {
 
         try {
             const date = new Date(dateTimeString);
+            if (isNaN(date.getTime())) {
+                console.log('Invalid time value:', dateTimeString);
+                return '-';
+            }
             return format(date, 'HH:mm');
         } catch (error) {
             console.error('Error formatting time:', error);
