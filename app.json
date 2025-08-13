@@ -29,13 +29,19 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "config": {
+        "googleSignIn": {
+          "behavior": "system"
+        }
+      }
     },
     "plugins": [
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "expo-location"
+      "expo-location",
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "eas": {

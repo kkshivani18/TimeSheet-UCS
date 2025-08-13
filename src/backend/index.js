@@ -117,6 +117,7 @@ const compoffRoutes = require('./routes/compoff')
 const attendanceRoutes = require('./routes/attendance');
 const tasksRoutes = require('./routes/tasks');
 const adminRoutes = require('./routes/admin');
+// const googleSigninRoute = require('./routes/googleauth');
 const authMiddleware = require('./middleware/auth');
 
 const app = express();
@@ -157,6 +158,9 @@ app.use('/api/tasks', tasksRoutes);
 
 // mount admin route
 app.use('/api/admin', adminRoutes);
+
+// mount google auth route
+// app.use('/api/googleauth', googleSigninRoute);
 
 app.use('/api/authenticate', authMiddleware, async (req, res) => {
   res.json({ message: 'Authentication successful' });

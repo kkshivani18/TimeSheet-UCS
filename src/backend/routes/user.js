@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const { nanoid } = require('nanoid')
 const authMiddleware = require('../middleware/auth');
 const router = express.Router();
+const axios = require('axios'); 
 
 router.post('/signup', async(req, res) => {
     const parseResult = userSignUpSchema.safeParse(req.body);
@@ -105,6 +106,65 @@ router.get('/:userId', async (req, res) => {
     } catch (err) {
         console.error('Error fetching user:', err);
         res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/googleauth', async (req, res) => {
+    try {
+        const { token } = req.body;
+
+        // verify token with Google
+        const googleResponse = await axios.get(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${token}`);
+        const { email, id: googleId, name } = googleResponse.data;
+
+        // Check if user exists
+        let user = await User.findOne({ 
+            $or: [
+                { email: email },
+                { googleId: googleId }
+            ]
+        });
+
+        if (!user) {
+            // new user
+            user = new User({
+                userId: nanoid(28),
+                email,
+                googleId,
+                username: name,
+                authProvider: 'google',
+                role: 'user',
+                passwordHash: await bcrypt.hash(nanoid(), 12) 
+            });
+            await user.save();
+        } else if (!user.googleId) {
+            // link existing user with Google
+            user.googleId = googleId;
+            user.authProvider = 'google';
+            await user.save();
+        }
+
+        // generate JWT token
+        const jwtToken = jwt.sign(
+            { 
+                id: user._id, 
+                userId: user.userId, 
+                email: user.email, 
+                role: user.role 
+            }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: '1d' }
+        );
+
+        res.json({ 
+            token: jwtToken, 
+            userId: user.userId, 
+            username: user.username, 
+            role: user.role 
+        });
+    } catch (error) {
+        console.error('Google auth error:', error);
+        res.status(500).json({ message: 'Authentication failed' });
     }
 });
 
