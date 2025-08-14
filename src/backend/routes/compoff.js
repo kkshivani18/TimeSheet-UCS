@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const CompOff = require('../models/Compoff');
 
-// new CompOff request
+// new compOff request
 router.post('/', async (req, res) => {
     try {
         const compOff = new CompOff(req.body);
@@ -13,7 +13,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-// Get all CompOff requests for a user
+// all CompOff requests for a user
 router.get('/user/:userId', async (req, res) => {
     try {
         const compOffs = await CompOff.find({ userId: req.params.userId });
@@ -23,7 +23,7 @@ router.get('/user/:userId', async (req, res) => {
     }
 });
 
-// Get all CompOff requests (admin)
+// all compOff requests (admin)
 router.get('/', async (req, res) => {
     try {
         const compOffs = await CompOff.find();

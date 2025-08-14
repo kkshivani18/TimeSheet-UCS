@@ -39,4 +39,21 @@ const CompOffSchema = new mongoose.Schema({
     },
 }, {timestamps: true, collection: 'compOff'});
 
+CompOffSchema.pre('save', function (next) {
+    if (!this.createdAt) {
+        this.createdAt = new Date();
+    }
+    this.updatedAt = new Date();
+    next();
+});
+
+CompOffSchema.pre('findOneAndUpdate', function (next) {
+    this.set({ updatedAt: new Date() });
+    // never allow overriding createdAt
+    if (this._update.createdAt) {
+        delete this._update.createdAt;
+    }
+    next();
+});
+
 module.exports = mongoose.model('Compoff', CompOffSchema);

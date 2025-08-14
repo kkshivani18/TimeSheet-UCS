@@ -106,13 +106,13 @@ export default function Login() {
         const result = await promptAsync();
         
         if (Platform.OS === 'web') {
-            // Web implementation
+            // web 
             if (result.type === 'success') {
                 const {authentication} = result;
                 await handleGoogleAuthSuccess(authentication.accessToken);
             }
         } else {
-            // Native implementation
+            // native 
             await GoogleSignin.hasPlayServices();
             const userInfo = await GoogleSignin.signIn();
             await handleGoogleAuthSuccess(userInfo.idToken);
@@ -135,191 +135,37 @@ export default function Login() {
             }
         }
         
-        setMessage(errorMessage);
-        setMessageType('error');
-    } finally {
-        setLoading(false);
-    }
-};
+            setMessage(errorMessage);
+            setMessageType('error');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-// Add this new function to handle successful Google auth
-const handleGoogleAuthSuccess = async (token) => {
-    try {
-        // Call your backend with the token
-        const response = await axios.post(`http://localhost:3000/api/user/googleauth`, {
-            token: token
-        });
+    // handle successful Google auth
+    const handleGoogleAuthSuccess = async (token) => {
+        try {
+            // Call your backend with the token
+            const response = await axios.post(`http://localhost:3000/api/user/googleauth`, {
+                token: token
+            });
 
-        const { token: jwtToken, userId, role, username } = response.data;
+            const { token: jwtToken, userId, role, username } = response.data;
 
-        // Store user data
-        await AsyncStorage.setItem('token', jwtToken);
-        await AsyncStorage.setItem('userId', userId);
-        await AsyncStorage.setItem('username', username);
-        await AsyncStorage.setItem('role', role);
+            // Store user data
+            await AsyncStorage.setItem('token', jwtToken);
+            await AsyncStorage.setItem('userId', userId);
+            await AsyncStorage.setItem('username', username);
+            await AsyncStorage.setItem('role', role);
 
-        // Navigate based on role
-        navigation.replace(role === 'admin' ? 'Admin' : 'Dashboard');
-    } catch (error) {
-        console.error('Backend authentication error:', error);
-        setMessage('Authentication failed. Please try again.');
-        setMessageType('error');
-    }
-};
-
-//     const handleGoogleSignIn = async () => {
-//     try {
-//         setLoading(true);
-//         await promptAsync(); 
-//     } catch (error) {
-//         console.error('Google Sign-In Error:', error);
-//         setMessage('Google Sign-In failed. Please try again.');
-//         setMessageType('error');
-//         setLoading(false);
-//     }
-// };
-
-// useEffect(() => {
-//     const handleAuthResponse = async () => {
-//         if (response?.type === 'success') {
-//             try {
-//                 const { access_token } = response.params; // Note: access_token, not accessToken
-
-//                 const res = await axios.post(`http://localhost:3000/api/googleauth`, {
-//                     token: access_token,
-//                 });
-
-//                 const { token, userId, role, username } = res.data;
-
-//                 await AsyncStorage.setItem('token', token);
-//                 await AsyncStorage.setItem('userId', userId);
-//                 await AsyncStorage.setItem('username', username);
-//                 await AsyncStorage.setItem('role', role);
-
-//                 console.log('Google Login successful. role:', role);
-                
-//                 // Navigate based on role
-//                 if (role === 'admin') {
-//                     navigation.replace('Admin');
-//                 } else {
-//                     navigation.replace('Dashboard');
-//                 }
-//             } catch (error) {
-//                 console.error('Google auth backend error:', error);
-//                 setMessage('Google authentication failed. Please try again.');
-//                 setMessageType('error');
-//             } finally {
-//                 setLoading(false);
-//             }
-//         } else if (response?.type === 'error') {
-//             setMessage('Google Sign-In was cancelled or failed.');
-//             setMessageType('error');
-//             setLoading(false);
-//         }
-//     };
-
-//     if (response) {
-//         handleAuthResponse();
-//     }
-// }, [response, navigation]);
-
-    // const handleGoogleSignIn = async () => {
-    //     try {
-    //         setLoading(true);
-    //         await promptAsync(); 
-    //     } catch (error) {
-    //         console.error('Redirect Sign-In Error:', error);
-    //         setMessage('Google Sign-In failed. Please try again.');
-    //         setMessageType('error');
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
-
-    // useEffect(() => {
-    //     const handleAuthResponse = async () => {
-    //         if (response?.type === 'success') {
-    //         const { accessToken } = response.authentication;
-
-    //         const res = await axios.post(`http://localhost:3000/api/googleauth`, {
-    //             token: accessToken,
-    //         });
-
-    //         const { token, userId, role, username } = res.data;
-
-    //         await AsyncStorage.setItem('token', token);
-    //         await AsyncStorage.setItem('userId', userId);
-    //         await AsyncStorage.setItem('username', username);
-    //         await AsyncStorage.setItem('role', role);
-
-    //         console.log('Google Login successful. role:', role);
-    //         navigation.replace(role === 'admin' ? 'Admin' : 'Dashboard');
-    //         }
-    //     };
-
-    //     handleAuthResponse();
-    // }, [response]);
-
-
-    // const handleGoogleSignIn = async () => {
-    //     try {
-    //         setLoading(true);
-
-    //         if (Platform.OS === 'web') {
-    //             const result = await promptAsync();
-    //             if (result.type === 'success') {
-    //                 const { accessToken } = result.authentication;
-
-    //                 // Send token to backend to verify and get user info
-    //                 const response = await axios.post(`http://localhost:3000/api/googleauth`, { token: accessToken });
-    //                 const { token, userId, role, username } = response.data;
-
-    //                 await AsyncStorage.setItem('token', token);
-    //                 await AsyncStorage.setItem('userId', userId);
-    //                 await AsyncStorage.setItem('username', username);
-    //                 await AsyncStorage.setItem('role', role);
-
-    //                 console.log('Google Login successful. role:', role);
-    //                 navigation.replace(role === 'admin' ? 'Admin' : 'Dashboard');
-    //             } else {
-    //                 setMessage('Google Sign-In failed. Please try again.');
-    //                 setMessageType('error');
-    //             }
-    //         } else {
-    //         // native Google Sign-In
-    //         await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    //         const userInfo = await GoogleSignin.signIn();
-
-    //         // Send userInfo.idToken or accessToken to your backend
-    //         const response = await axios.post(`http://localhost:3000/api/googleauth`, {
-    //             token: userInfo.idToken,
-    //         });
-
-    //         const { token, userId, role, username } = response.data;
-
-    //         await AsyncStorage.setItem('token', token);
-    //         await AsyncStorage.setItem('userId', userId);
-    //         await AsyncStorage.setItem('username', username);
-    //         await AsyncStorage.setItem('role', role);
-
-    //         console.log('Native Google Login successful. role:', role);
-    //         navigation.replace(role === 'admin' ? 'Admin' : 'Dashboard');
-    //         }
-
-    //         // navigate based on role
-    //         if (role === 'admin') {
-    //             navigation.replace('Admin');
-    //         } else {
-    //             navigation.replace('Dashboard');
-    //         }
-    //     } catch (error) {
-    //         console.error('Google Sign In Error:', error);
-    //         setMessage('Google Sign In failed. Please try again.');
-    //         setMessageType('error');
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
+            // Navigate based on role
+            navigation.replace(role === 'admin' ? 'Admin' : 'Dashboard');
+        } catch (error) {
+            console.error('Backend authentication error:', error);
+            setMessage('Authentication failed. Please try again.');
+            setMessageType('error');
+        }
+    };
 
     return (
         <View style={styles.container}>
@@ -405,21 +251,6 @@ const handleGoogleAuthSuccess = async (token) => {
                     Or
                 </Text>
             </View>
-            {/* <TouchableOpacity 
-                style={styles.googleButton}
-                onPress={handleGoogleSignIn}
-                disabled={loading}
-            >
-                <View style={styles.googleButtonContent}>
-                    <Image 
-                        source={require('../../images/google-auth.png')} 
-                        style={styles.googleIcon} 
-                    />
-                    <Text style={styles.googleButtonText}>
-                        Sign in with Google
-                    </Text>
-                </View>
-            </TouchableOpacity> */}
             <TouchableOpacity 
                 style={[
                     styles.googleButton,
