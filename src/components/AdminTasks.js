@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { create } from 'react-test-renderer';
+import {API_URL} from '@env';
 
 const months = [
     { label: 'January', value: 1 },
@@ -144,7 +145,7 @@ export default function AdminTasks({ navigation }) {
             };
 
             // add task to mongodb
-            const response = await axios.post('http/localhost:3000/api/tasks/admin/create', newTask, {
+            const response = await axios.post(`${API_URL}/api/tasks/admin/create`, newTask, {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
 

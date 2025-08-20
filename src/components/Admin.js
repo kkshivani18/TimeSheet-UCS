@@ -6,6 +6,7 @@ import { Icon } from 'react-native-elements';
 import { Calendar } from 'react-native-calendars';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import {API_URL} from '@env';
 
 const months = [
     { label: 'January', value: 1 },
@@ -76,7 +77,7 @@ export default function Admin({ navigation }) {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const response = await axios.get('http://localhost:3000/api/admin/users');
+            const response = await axios.get(`${API_URL}/api/admin/users`);
             setUsers(response.data);
         } catch (error) {
             console.error('Error fetching users:', error);
@@ -89,7 +90,7 @@ export default function Admin({ navigation }) {
     // fetch paid holidays
     const fetchPaidHolidays = async () => {
         try {
-            const response = await axios.get(`http://localhost:3000/api/holidays/${selectedYear}`);
+            const response = await axios.get(`${API_URL}/api/holidays/${selectedYear}`);
             
             const holidaysMap = {};
             response.data.forEach(holiday => {
@@ -112,7 +113,7 @@ export default function Admin({ navigation }) {
 
         try {
 
-            const response = await axios.get(`http://localhost:3000/api/leaves?userId=${selectedUser.userId}&year=${selectedYear}&month=${selectedMonth.toString().padStart(2, '0')}`);
+            const response = await axios.get(`${API_URL}/api/leaves?userId=${selectedUser.userId}&year=${selectedYear}&month=${selectedMonth.toString().padStart(2, '0')}`);
             const leavesMap = {};
             response.data.forEach(leave => {
                 const startDate = new Date(leave.startDate);

@@ -6,6 +6,7 @@ import axios from 'axios';
 import { Icon } from 'react-native-elements';
 import { format } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {API_URL} from '@env';
 
 export default function AdminCompOff({ navigation }) {
     const [compOffApplications, setCompOffApplications] = useState([]);
@@ -45,7 +46,7 @@ export default function AdminCompOff({ navigation }) {
         const fetchUserData = async () => {
                 try {
                     setIsLoading(true);
-                    const response = await axios.get('http://localhost:3000/api/admin/users');
+                    const response = await axios.get(`${API_URL}/api/admin/users`);
                     setUsers(response.data);
                 } catch (error) {
                     console.error('Error fetching users:', error);
@@ -74,13 +75,13 @@ export default function AdminCompOff({ navigation }) {
             setIsLoading(true);
             
             // fetch comp-off applications 
-            const response = await axios.get('http://localhost:3000/api/compoff/admin');
+            const response = await axios.get(`${API_URL}/api/compoff/admin`);
             
             // fetch usernames for all applications
             const applicationsWithUsernames = await Promise.all(
                 response.data.map(async (app) => {
                     try {
-                        const userResponse = await axios.get(`http://localhost:3000/api/user/${app.userId}`);
+                        const userResponse = await axios.get(`${API_URL}/api/user/${app.userId}`);
                         return {
                             ...app,
                             username: userResponse.data.username,
@@ -179,7 +180,7 @@ export default function AdminCompOff({ navigation }) {
 
     const handleUpdateStatus = async (applicationId, newStatus) => {
         try {
-            await axios.put(`http://localhost:3000/api/compoff/${applicationId}`, {
+            await axios.put(`${API_URL}/api/compoff/${applicationId}`, {
                 status: newStatus
             });
             

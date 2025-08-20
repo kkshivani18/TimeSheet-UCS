@@ -7,6 +7,7 @@ import { Icon } from 'react-native-elements';
 import { format } from 'date-fns';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {API_URL} from '@env';
 
 export default function Tasks({ route, navigation }) {
     const [tasks, setTasks] = useState([]);
@@ -52,7 +53,7 @@ export default function Tasks({ route, navigation }) {
                       setUser(null);
                       return;
                     }
-                    const response = await axios.get(`http://localhost:3000/api/user/${userId}`, {
+                    const response = await axios.get(`${API_URL}/api/user/${userId}`, {
                       headers: { Authorization: `Bearer ${token}` }
                     });
                     setUsername(response.data.username || 'User');
@@ -74,7 +75,7 @@ export default function Tasks({ route, navigation }) {
             try {
                 const userId = await AsyncStorage.getItem('userId');
                 if (userId) {
-                    const response = await axios.get(`http://localhost:3000/api/user/${userId}`, {
+                    const response = await axios.get(`${API_URL}/api/user/${userId}`, {
                         headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
                     });
                     setUserRole(response.data.role);
@@ -153,7 +154,7 @@ export default function Tasks({ route, navigation }) {
             });
 
             const response = await axios.get(
-                `http://localhost:3000/api/tasks/user/${targetUserId}/monthly`,
+                `${API_URL}/api/tasks/user/${targetUserId}/monthly`,
                 {
                     params: {
                         startDate: startOfMonth.toISOString(),
@@ -194,7 +195,7 @@ export default function Tasks({ route, navigation }) {
         });
 
         const response = await axios.get(
-            `http://localhost:3000/api/tasks/user/${targetUserId}/date/${selectedDate}`,
+            `${API_URL}/api/tasks/user/${targetUserId}/date/${selectedDate}`,
             {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             }
@@ -292,7 +293,7 @@ export default function Tasks({ route, navigation }) {
                 let targetUserEmail = 'user@example.com';
                 
                 try {
-                    const userResponse = await axios.get(`http://localhost:3000/api/user/${targetUserId}`, {
+                    const userResponse = await axios.get(`${API_URL}/api/user/${targetUserId}`, {
                         headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
                     });
                     targetUsername = userResponse.data.username;
@@ -301,7 +302,7 @@ export default function Tasks({ route, navigation }) {
                     console.error('Error fetching target user details:', error);
                 }
 
-                apiEndpoint = 'http://localhost:3000/api/tasks/admin/create';
+                apiEndpoint = `${API_URL}/api/tasks/admin/create`;
                 taskData = {
                     userId: targetUserId,
                     email: targetUserEmail,
@@ -316,7 +317,7 @@ export default function Tasks({ route, navigation }) {
             } else {
                 // user or admin creating task for oneself - user/create endpoint
                 
-                apiEndpoint = 'http://localhost:3000/api/tasks/user/create';
+                apiEndpoint = `${API_URL}/api/tasks/user/create`;
                 taskData = {
                     heading: editHeading.trim(),
                     description: editDescription.trim(),
@@ -425,7 +426,7 @@ export default function Tasks({ route, navigation }) {
             };
 
             const response = await axios.put(
-                `http://localhost:3000/api/tasks/${editingTask._id}`,
+                `${API_URL}/api/tasks/${editingTask._id}`,
                 updateData,
                 {
                     headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
@@ -462,7 +463,7 @@ export default function Tasks({ route, navigation }) {
                         text: 'Delete',
                         style: 'destructive',
                         onPress: async () => {
-                            await axios.delete(`http://localhost:3000/api/tasks/${taskId}`, {
+                            await axios.delete(`${API_URL}/api/tasks/${taskId}`, {
                                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
                             });
                             setTasks(tasks.filter(task => task._id !== taskId));
@@ -481,7 +482,7 @@ export default function Tasks({ route, navigation }) {
         try {
             
             const response = await axios.patch(
-                `http://localhost:3000/api/tasks/${taskId}/toggle`,
+                `${API_URL}/api/tasks/${taskId}/toggle`,
                 {},
                 {
                     headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
@@ -677,7 +678,7 @@ export default function Tasks({ route, navigation }) {
     // Render monthly tasks as individual cards
         const renderMonthlyTasksList = () => {
             return (
-                <>
+                <View style={{flex: 1}}>
                     <View style={styles.monthSelectorContainer}>
                         <TouchableOpacity
                             style={styles.monthNavigationButton}
@@ -707,10 +708,10 @@ export default function Tasks({ route, navigation }) {
                             renderItem={renderTask}
                             keyExtractor={(item) => item._id}
                             contentContainerStyle={styles.flatListContent}
-                            style={styles.flatListStyle} 
+                            style={{flex: 1}} 
                             showsVerticalScrollIndicator={true}
-                            nestedScrollEnabled={true}
-                            removeClippedSubviews={false}
+                            // nestedScrollEnabled={true}
+                            // removeClippedSubviews={false}
                             ListEmptyComponent={() => (
                                 <View style={styles.noTasksContainer}>
                                     <Text style={styles.noTasksText}>No tasks for {getSelectedMonthName()} {selectedYear}</Text>
@@ -718,7 +719,7 @@ export default function Tasks({ route, navigation }) {
                             )}
                         />
                     )}
-                </>
+                </View>
             );
         };
 
@@ -815,6 +816,7 @@ export default function Tasks({ route, navigation }) {
 
                 {/* Main content  */}
                     {/* <View style={styles.mainContentContainer}> */}
+                    {/* <View style={{flex: 1}}> 
                         {loading ? (
                             <View style={styles.loadingContainer}>
                                 <ActivityIndicator size="large" color="#007AFF" />
@@ -836,11 +838,63 @@ export default function Tasks({ route, navigation }) {
                                     contentContainerStyle={styles.flatListContent}
                                     style={styles.flatListStyle}
                                     showsVerticalScrollIndicator={true}
-                                    nestedScrollEnabled={true}
+                                    // nestedScrollEnabled={true}
                                 />
                             </View>
                         )}
-                    {/* </View> */}
+                    </View>  */}
+
+                    <View style={{ flex: 1 }}>
+                        {loading ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color="#007AFF" />
+                            </View>
+                        ) : !selectedDate && monthlyTasksLoaded ? (
+                            <FlatList
+                                data={sortTasksByDate(monthlyTasks)}
+                                renderItem={renderTask}
+                                keyExtractor={(item) => item._id}
+                                contentContainerStyle={styles.flatListContent}
+                                // style={{ flexGrow: 1 }}
+                                showsVerticalScrollIndicator={true}
+                                nestedScrollEnabled={true}
+                                ListHeaderComponent={() => (
+                                    <View style={styles.monthSelectorContainer}>
+                                        <TouchableOpacity onPress={goToPreviousMonth}>
+                                            <Icon name="chevron-left" type="feather" size={24} color="#007AFF" />
+                                        </TouchableOpacity>
+                                        <View style={styles.monthYearContainer}>
+                                            <Text style={styles.monthTitle}>{getSelectedMonthName()}</Text>
+                                            <Text style={styles.yearText}>{selectedYear}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={goToNextMonth}>
+                                            <Icon name="chevron-right" type="feather" size={24} color="#007AFF" />
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                                ListEmptyComponent={() => (
+                                    <View style={styles.noTasksContainer}>
+                                        <Text style={styles.noTasksText}>
+                                            No tasks for {getSelectedMonthName()} {selectedYear}
+                                        </Text>
+                                    </View>
+                                )}
+                            />
+                        ) : (
+                            <FlatList
+                                data={tasks}
+                                renderItem={renderTask}
+                                keyExtractor={(item) => item._id}
+                                contentContainerStyle={styles.flatListContent}
+                                style={{ flex: 1 }}
+                                ListEmptyComponent={() => (
+                                    <View style={styles.noTasksContainer}>
+                                        <Text style={styles.noTasksText}>No tasks for this date</Text>
+                                    </View>
+                                )}
+                            />
+                        )}
+                    </View>
 
                     {/* floating "+" button */}
                     <TouchableOpacity style={styles.addButton} onPress={handleAddTask}>
@@ -1132,7 +1186,7 @@ const styles = StyleSheet.create({
     },
     container: {
         flex: 1,
-        padding: 16,
+        // padding: 16,
         backgroundColor: '#f0f0f0',
         // marginTop: 5,
         paddingTop: 5,
@@ -1182,22 +1236,23 @@ const styles = StyleSheet.create({
     monthlyTasksWrapper: {
         flex: 1,
         width: '100%',
-        backgroundColor: '#f0f0f0'
+        // backgroundColor: '#f0f0f0'
     },
     dailyTasksWrapper: {
         flex: 1,
         width: '100%',
-        backgroundColor: '#f0f0f0'
+        // backgroundColor: '#f0f0f0'
     },
     flatListStyle: {
-        flex: 1,
+        // flex: 1,
         width: '100%',
-        backgroundColor: 'transparent'
+        // backgroundColor: 'transparent'
     },
     flatListContent: {
-        paddingBottom: 100,
-        // flexGrow: 1,
-        paddingTop: 8
+        paddingBottom: 80,
+        flexGrow: 1,
+        // paddingTop: 8
+        paddingHorizontal: 16
     },
     taskCard: {
         backgroundColor: 'white',
@@ -1480,9 +1535,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 10,
-        marginBottom: 8,
-        paddingVertical: 5,
+        // paddingHorizontal: 10,
+        // marginBottom: 8,
+        // paddingVertical: 5,
+        padding: 16,
+        backgroundColor: '#f0f0f0'
     },
     monthNavigationButton: {
         padding: 8,

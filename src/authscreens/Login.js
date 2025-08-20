@@ -8,8 +8,8 @@ import { GoogleSignin, User, statusCodes, isErrorWithCode, isSuccessResponse, is
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
-import {WEB_CLIENT_ID, ANDROID_CLIENT_ID} from '@env';
-import { makeRedirectUri } from 'expo-auth-session';
+import {WEB_CLIENT_ID, ANDROID_CLIENT_ID, API_URL} from '@env';
+// import { makeRedirectUri } from 'expo-auth-session';
 
 GoogleSignin.configure({
   webClientId: WEB_CLIENT_ID,
@@ -35,7 +35,7 @@ export default function Login() {
     const handleLogin = async () => {
         try {
             setLoading(true);
-            const response = await axios.post(`http://localhost:3000/api/user/login`, { email, password });
+            const response = await axios.post(`${API_URL}/api/user/login`, { email, password });
             const { token, userId, role, username } = response.data;
             await AsyncStorage.setItem('token', token);
             await AsyncStorage.setItem('userId', userId);
@@ -146,7 +146,7 @@ export default function Login() {
     const handleGoogleAuthSuccess = async (token) => {
         try {
             // Call your backend with the token
-            const response = await axios.post(`http://localhost:3000/api/user/googleauth`, {
+            const response = await axios.post(`${API_URL}/api/user/googleauth`, {
                 token: token
             });
 

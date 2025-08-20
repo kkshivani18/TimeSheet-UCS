@@ -9,6 +9,7 @@ import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
+import {API_URL} from '@env';
 
 export default function LeaveApplication({ navigation }) {
     const [leaveReason, setLeaveReason] = useState('');
@@ -40,7 +41,7 @@ export default function LeaveApplication({ navigation }) {
 
             // fetch leave applications first
             const leavesResponse = await axios.get(
-                `http://localhost:3000/api/leaves/user/all/${userId}`,
+                `${API_URL}/api/leaves/user/all/${userId}`,
                 { 
                     headers: { 
                         Authorization: `Bearer ${token}` 
@@ -51,7 +52,7 @@ export default function LeaveApplication({ navigation }) {
             setLeaveApplications(leavesResponse.data);
     
             // fetch user info if needed
-            const userResponse = await axios.get(`http://localhost:3000/api/user/${userId}`, {
+            const userResponse = await axios.get(`${API_URL}/api/user/${userId}`, {
             headers: { Authorization: `Bearer ${token}` }
             });
             setUser(userResponse.data);
@@ -128,7 +129,7 @@ export default function LeaveApplication({ navigation }) {
 
             // Submit to backend API
             const response = await axios.post(
-                'http://localhost:3000/api/leaves',
+                `${API_URL}/api/leaves`,
                 leaveRequest,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -143,7 +144,7 @@ export default function LeaveApplication({ navigation }) {
                 
                 // Refresh leave applications list
                 const leavesResponse = await axios.get(
-                    `http://localhost:3000/api/leaves/user/${userId}`,
+                    `${API_URL}/api/leaves/user/${userId}`,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
                 setLeaveApplications(leavesResponse.data);

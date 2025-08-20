@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStateForPath } from '@react-navigation/native';
+import {API_URL} from '@env';
 
 const months = [
     { label: 'January', value: 1 },
@@ -54,7 +55,7 @@ export default function Dashboard({ navigation }) {
                   setUser(null);
                   return;
                 }
-                const response = await axios.get(`http://localhost:3000/api/user/${userId}`, {
+                const response = await axios.get(`${API_URL}/api/user/${userId}`, {
                   headers: { Authorization: `Bearer ${token}` }
                 });
                 setUsername(response.data.username || 'User');
@@ -82,7 +83,7 @@ export default function Dashboard({ navigation }) {
         try {
           const token = await AsyncStorage.getItem('token');
           const response = await axios.get(
-            `http://localhost:3000/api/leaves?userId=${userId}&year=${year}&month=${month.toString().padStart(2, '0')}`,
+            `${API_URL}/api/leaves?userId=${userId}&year=${year}&month=${month.toString().padStart(2, '0')}`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
           return response.data; 
@@ -150,7 +151,7 @@ export default function Dashboard({ navigation }) {
 
             // Fetch attendance from backend API
             const response = await axios.get(
-                `http://localhost:3000/api/attendance/${userId}/${formattedYear}/${formattedMonth}`,
+                `${API_URL}/api/attendance/${userId}/${formattedYear}/${formattedMonth}`,
                 {
                     headers: { Authorization: `Bearer ${token}` }
                 }
@@ -204,7 +205,7 @@ export default function Dashboard({ navigation }) {
     
     const fetchPaidHolidays = async () => {
             try {
-            const response = await axios.get(`http://localhost:3000/api/holidays/${selectedYear}`);
+            const response = await axios.get(`${API_URL}/api/holidays/${selectedYear}`);
         
         const holidaysMap = {};
         response.data.forEach(holiday => {
@@ -287,7 +288,7 @@ export default function Dashboard({ navigation }) {
             };
 
             // add task to mongodb
-            const response = await axios.post('http://localhost:3000/api/tasks/user/create', newTask, {
+            const response = await axios.post(`${API_URL}/api/tasks/user/create`, newTask, {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
 

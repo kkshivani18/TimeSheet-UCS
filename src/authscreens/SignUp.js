@@ -4,8 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios'; 
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import {API_URL} from '@env';
 // const { userSignUpSchema } = require('../backend/models/user.zod')
-const API_URL = 'http://127.0.0.1:3000/api/user'
 
 export default function SignUp() {
     const [username, setUsername] = useState('');

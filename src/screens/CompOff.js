@@ -7,6 +7,7 @@ import { Icon } from 'react-native-elements';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, addMonths, subMonths, startOfDay, endOfDay } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {API_URL} from '@env';
 
 export default function CompOff({ navigation }) {
     const [startDate, setStartDate] = useState(new Date());
@@ -77,7 +78,7 @@ export default function CompOff({ navigation }) {
             const userId = await AsyncStorage.getItem('userId');
             if (!userId) return;
 
-            const response = await fetch(`http://localhost:3000/api/compoff/user/${userId}`);
+            const response = await fetch(`${API_URL}/api/compoff/user/${userId}`);
             if (!response.ok) throw new Error('Failed to fetch comp-off requests');
             const data = await response.json();
             data.sort((a, b) => new Date(b.startDateTime) - new Date(a.startDateTime));
@@ -186,7 +187,7 @@ export default function CompOff({ navigation }) {
                 halfDayPeriod: compOffType === 'half' ? halfDayPeriod : null,
             };
     
-            const response = await fetch('http://localhost:3000/api/compoff', {
+            const response = await fetch(`${API_URL}/api/compoff`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

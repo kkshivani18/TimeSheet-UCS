@@ -6,6 +6,7 @@ import { Icon } from 'react-native-elements';
 import {Ionicons} from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import {API_URL} from '@env';
 
 // const screenWidth = Dimensions.get('window').width;
 
@@ -59,7 +60,7 @@ export default function AdminLeave({ navigation }) {
     useEffect(() => {
         const fetchLeaves = async () => {
             try {
-                const response = await axios.get('http://localhost:3000/api/leaves/all');
+                const response = await axios.get(`${API_URL}/api/leaves/all`);
                 setLeaveRequests(response.data);
             } catch (error) {
                 console.error('Error fetching leave requests:', error);
@@ -77,7 +78,7 @@ export default function AdminLeave({ navigation }) {
             return;
         }
         try {
-            const response = await axios.put(`http://localhost:3000/api/leaves/${id}/status`, {
+            const response = await axios.put(`${API_URL}/api/leaves/${id}/status`, {
                 status: status
             });
 

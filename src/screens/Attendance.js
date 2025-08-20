@@ -10,6 +10,7 @@ import * as Sharing from 'expo-sharing';
 import { Icon } from 'react-native-elements';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios'; 
+import {API_URL} from '@env';
 
 export default function Attendance({ navigation }) {
     const [username, setUsername] = useState('');
@@ -55,7 +56,7 @@ export default function Attendance({ navigation }) {
                   setUser(null);
                   return;
                 }
-                const response = await axios.get(`http://localhost:3000/api/user/${userId}`, {
+                const response = await axios.get(`${API_URL}/api/user/${userId}`, {
                   headers: { Authorization: `Bearer ${token}` }
                 });
                 setUsername(response.data.username || 'User');
@@ -110,7 +111,7 @@ export default function Attendance({ navigation }) {
             const formattedDate = format(today, 'yyyy-MM-dd');
             console.log(`Fetching attendance for userId: ${userId}, date: ${formattedDate}`);
             
-            const response = await axios.get(`http://localhost:3000/api/attendance/user/${userId}/date/${formattedDate}`, {
+            const response = await axios.get(`${API_URL}/api/attendance/user/${userId}/date/${formattedDate}`, {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
             console.log('fetchAttendance response:', response.data);
@@ -174,7 +175,7 @@ export default function Attendance({ navigation }) {
                 totalWorkedMinutes: 0,
             };
             console.log('Sending check-in:', attendanceData);
-            const response = await axios.post('http://localhost:3000/api/attendance', attendanceData, {
+            const response = await axios.post(`${API_URL}/api/attendance`, attendanceData, {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
             console.log('Check-in response:', response.data);
@@ -220,7 +221,7 @@ export default function Attendance({ navigation }) {
             };
 
             console.log('Sending check-out:', attendanceData);
-            const response = await axios.post('http://localhost:3000/api/attendance', attendanceData, {
+            const response = await axios.post(`${API_URL}/api/attendance`, attendanceData, {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
             console.log('Check-out response:', response.data);
@@ -265,7 +266,7 @@ export default function Attendance({ navigation }) {
                 regularization_status: 'Pending'
             };
 
-            const response = await axios.post('http://localhost:3000/api/attendance', regularizationData, {
+            const response = await axios.post(`${API_URL}/api/attendance`, regularizationData, {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
 
@@ -366,7 +367,7 @@ export default function Attendance({ navigation }) {
     const fetchPaidHolidays = async () => {
         try {
             const currentYear = new Date().getFullYear();
-            const response = await axios.get(`http://localhost:3000/api/holidays/${currentYear}`, {
+            const response = await axios.get(`${API_URL}/api/holidays/${currentYear}`, {
                 headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
             
@@ -402,7 +403,7 @@ export default function Attendance({ navigation }) {
             //     headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             // });
             
-            const response = await axios.get(`http://localhost:3000/api/leaves/user/${userId}`, {
+            const response = await axios.get(`${API_URL}/api/leaves/user/${userId}`, {
             headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
             });
 
@@ -449,7 +450,7 @@ export default function Attendance({ navigation }) {
             // Fetch leave data first and update state
             const currentLeaveDays = await fetchLeaveData(start, end);
             
-            const attendanceResponse = await axios.get(`http://localhost:3000/api/attendance/user/${userId}/range`, {
+            const attendanceResponse = await axios.get(`${API_URL}/api/attendance/user/${userId}/range`, {
                 params: {
                     startDate: format(start, 'yyyy-MM-dd'),
                     endDate: format(end, 'yyyy-MM-dd')
@@ -551,7 +552,7 @@ export default function Attendance({ navigation }) {
 
             // fetch both attendance and leave data
             const [attendanceResponse, currentLeaveDays] = await Promise.all([
-                axios.get(`http://localhost:3000/api/attendance/user/${userId}/range`, {
+                axios.get(`${API_URL}/api/attendance/user/${userId}/range`, {
                     params: { startDate, endDate },
                     headers: { Authorization: `Bearer ${await AsyncStorage.getItem('token')}` }
                 }),

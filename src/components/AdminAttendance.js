@@ -10,6 +10,7 @@ import * as FileSystem from 'expo-file-system';
 import { parse, isValid } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import {API_URL} from '@env';
 
 export default function AdminAttendance({ navigation }) {
     const [isAdmin, setIsAdmin] = useState(false);
@@ -70,7 +71,7 @@ export default function AdminAttendance({ navigation }) {
     // fetch all users
     const fetchUsers = async () => {
         try {
-            const response = await axios.get('http://localhost:3000/api/admin/users');
+            const response = await axios.get(`${API_URL}/api/admin/users`);
             const usersList = response.data.map(user => ({
                 id: user._id || user.userId,
                 userId: user.userId || user._id,
@@ -98,7 +99,7 @@ export default function AdminAttendance({ navigation }) {
         if (!selectedUser) return null;
 
         try {
-            const response = await axios.get(`http://localhost:3000/api/attendance/user/${selectedUser.id}/date/${formattedDate}`);
+            const response = await axios.get(`${API_URL}/api/attendance/user/${selectedUser.id}/date/${formattedDate}`);
             return response.data;
         } catch (error) {
             console.error('Error fetching attendance record:', error);
@@ -125,7 +126,7 @@ export default function AdminAttendance({ navigation }) {
     // fetch paid holidays
     const fetchPaidHolidays = async () => {
         try {
-            const response = await axios.get(`http://localhost:3000/api/holidays/${selectedYear}`);
+            const response = await axios.get(`${API_URL}/api/holidays/${selectedYear}`);
             
             const holidaysMap = {};
             response.data.forEach(holiday => {
@@ -152,7 +153,7 @@ export default function AdminAttendance({ navigation }) {
             console.log('Fetching attendance for user:', selectedUser);
             console.log('Date range:', format(start, 'yyyy-MM-dd'), 'to', format(end, 'yyyy-MM-dd'));
 
-            const response = await axios.get(`http://localhost:3000/api/attendance/user/${selectedUser.userId}/range`, {
+            const response = await axios.get(`${API_URL}/api/attendance/user/${selectedUser.userId}/range`, {
                 params: {
                     startDate: format(start, 'yyyy-MM-dd'),
                     endDate: format(end, 'yyyy-MM-dd')
@@ -538,7 +539,7 @@ export default function AdminAttendance({ navigation }) {
 
             // Send the processed holidays array to the backend
             try {
-                const response = await axios.post('http://localhost:3000/api/holidays/upload', { 
+                const response = await axios.post(`${API_URL}/api/holidays/upload`, { 
                     holidays: processedHolidays 
                 });
                 
@@ -678,7 +679,7 @@ export default function AdminAttendance({ navigation }) {
         const getRequests = async () => {
             setLoadingRequests(true);
             try {
-                const response = await axios.get('http://localhost:3000/api/attendance/regularization/pending');
+                const response = await axios.get(`${API_URL}/api/attendance/regularization/pending`);
                 setPendingRequests(response.data);
             } catch (error) {
                 console.error('Error fetching regularization requests:', error);
@@ -698,7 +699,7 @@ export default function AdminAttendance({ navigation }) {
     const fetchPendingRequests = async () => {
         try {
             setLoadingRequests(true);
-            const response = await axios.get('http://localhost:3000/api/attendance/regularization/pending');
+            const response = await axios.get(`${API_URL}/api/attendance/regularization/pending`);
             setPendingRequests(response.data);
         } catch (error) {
             console.error('Error fetching regularization requests:', error);
@@ -721,7 +722,7 @@ export default function AdminAttendance({ navigation }) {
             const checkOutDate = new Date(requestDate);
             checkOutDate.setHours(18, 0, 0, 0);
             
-            await axios.put(`http://localhost:3000/api/attendance/regularization/${request._id}`, {
+            await axios.put(`${API_URL}/api/attendance/regularization/${request._id}`, {
                 status: 'Approved',
                 checkInTime: checkInDate.toISOString(),
                 checkOutTime: checkOutDate.toISOString(),
