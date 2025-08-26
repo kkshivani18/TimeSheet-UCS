@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Platform, ScrollView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-// import { FIREBASE_AUTH, FIRESTORE_DB } from '../firebaseConfig';
-// import { collection, query, where, getDoc, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, serverTimestamp } from 'firebase/firestore';
 import { Icon } from 'react-native-elements';
 import { format } from 'date-fns';
 import axios from 'axios';
@@ -676,52 +674,52 @@ export default function Tasks({ route, navigation }) {
     };
 
     // Render monthly tasks as individual cards
-        const renderMonthlyTasksList = () => {
-            return (
-                <View style={{flex: 1}}>
-                    <View style={styles.monthSelectorContainer}>
-                        <TouchableOpacity
-                            style={styles.monthNavigationButton}
-                            onPress={goToPreviousMonth}
-                        >
-                            <Icon name="chevron-left" type="feather" size={24} color="#007AFF" />
-                        </TouchableOpacity>
+        // const renderMonthlyTasksList = () => {
+        //     return (
+        //         <View style={{flex: 1}}>
+        //             <View style={styles.monthSelectorContainer}>
+        //                 <TouchableOpacity
+        //                     style={styles.monthNavigationButton}
+        //                     onPress={goToPreviousMonth}
+        //                 >
+        //                     <Icon name="chevron-left" type="feather" size={24} color="#007AFF" />
+        //                 </TouchableOpacity>
 
-                        <View style={styles.monthYearContainer}>
-                            <Text style={styles.monthTitle}>{getSelectedMonthName()}</Text>
-                            <Text style={styles.yearText}>{selectedYear}</Text>
-                        </View>
+        //                 <View style={styles.monthYearContainer}>
+        //                     <Text style={styles.monthTitle}>{getSelectedMonthName()}</Text>
+        //                     <Text style={styles.yearText}>{selectedYear}</Text>
+        //                 </View>
 
-                        <TouchableOpacity
-                            style={styles.monthNavigationButton}
-                            onPress={goToNextMonth}
-                        >
-                            <Icon name="chevron-right" type="feather" size={24} color="#007AFF" />
-                        </TouchableOpacity>
-                    </View>
+        //                 <TouchableOpacity
+        //                     style={styles.monthNavigationButton}
+        //                     onPress={goToNextMonth}
+        //                 >
+        //                     <Icon name="chevron-right" type="feather" size={24} color="#007AFF" />
+        //                 </TouchableOpacity>
+        //             </View>
 
-                    {loading ? (
-                        <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
-                    ) : (
-                        <FlatList
-                            data={sortTasksByDate(monthlyTasks)}
-                            renderItem={renderTask}
-                            keyExtractor={(item) => item._id}
-                            contentContainerStyle={styles.flatListContent}
-                            style={{flex: 1}} 
-                            showsVerticalScrollIndicator={true}
-                            // nestedScrollEnabled={true}
-                            // removeClippedSubviews={false}
-                            ListEmptyComponent={() => (
-                                <View style={styles.noTasksContainer}>
-                                    <Text style={styles.noTasksText}>No tasks for {getSelectedMonthName()} {selectedYear}</Text>
-                                </View>
-                            )}
-                        />
-                    )}
-                </View>
-            );
-        };
+        //             {loading ? (
+        //                 <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+        //             ) : (
+        //                 <FlatList
+        //                     data={sortTasksByDate(monthlyTasks)}
+        //                     renderItem={renderTask}
+        //                     keyExtractor={(item) => item._id}
+        //                     contentContainerStyle={styles.flatListContent}
+        //                     style={{flex: 1}} 
+        //                     showsVerticalScrollIndicator={true}
+        //                     // nestedScrollEnabled={true}
+        //                     // removeClippedSubviews={false}
+        //                     ListEmptyComponent={() => (
+        //                         <View style={styles.noTasksContainer}>
+        //                             <Text style={styles.noTasksText}>No tasks for {getSelectedMonthName()} {selectedYear}</Text>
+        //                         </View>
+        //                     )}
+        //                 />
+        //             )}
+        //         </View>
+        //     );
+        // };
 
     const handleLogout = async () => {
         try {
@@ -844,43 +842,69 @@ export default function Tasks({ route, navigation }) {
                         )}
                     </View>  */}
 
-                    <View style={{ flex: 1 }}>
+                    {/* <View style={{ flex: 1 }}> */}
                         {loading ? (
                             <View style={styles.loadingContainer}>
                                 <ActivityIndicator size="large" color="#007AFF" />
                             </View>
                         ) : !selectedDate && monthlyTasksLoaded ? (
+                            // <FlatList
+                            //     data={sortTasksByDate(monthlyTasks)}
+                            //     renderItem={renderTask}
+                            //     keyExtractor={(item) => item._id}
+                            //     contentContainerStyle={styles.flatListContent}
+                            //     showsVerticalScrollIndicator={true}
+                            //     nestedScrollEnabled={true}
+                            //     ListHeaderComponent={() => (
+                            //         <View style={styles.monthSelectorContainer}>
+                            //             <TouchableOpacity onPress={goToPreviousMonth}>
+                            //                 <Icon name="chevron-left" type="feather" size={24} color="#007AFF" />
+                            //             </TouchableOpacity>
+                            //             <View style={styles.monthYearContainer}>
+                            //                 <Text style={styles.monthTitle}>{getSelectedMonthName()}</Text>
+                            //                 <Text style={styles.yearText}>{selectedYear}</Text>
+                            //             </View>
+                            //             <TouchableOpacity onPress={goToNextMonth}>
+                            //                 <Icon name="chevron-right" type="feather" size={24} color="#007AFF" />
+                            //             </TouchableOpacity>
+                            //         </View>
+                            //     )}
+                            //     ListEmptyComponent={() => (
+                            //         <View style={styles.noTasksContainer}>
+                            //             <Text style={styles.noTasksText}>
+                            //                 No tasks for {getSelectedMonthName()} {selectedYear}
+                            //             </Text>
+                            //         </View>
+                            //     )}
+                            // />
+
                             <FlatList
+                                style={{flex: 1}}
                                 data={sortTasksByDate(monthlyTasks)}
                                 renderItem={renderTask}
                                 keyExtractor={(item) => item._id}
-                                contentContainerStyle={styles.flatListContent}
-                                // style={{ flexGrow: 1 }}
+                                contentContainerStyle={{
+                                    paddingBottom: 80,
+                                    paddingHorizontal: 16,
+                                }}
                                 showsVerticalScrollIndicator={true}
-                                nestedScrollEnabled={true}
-                                ListHeaderComponent={() => (
+                                nestedScrollEnabled={true}  
+                                ListHeaderComponent={
                                     <View style={styles.monthSelectorContainer}>
-                                        <TouchableOpacity onPress={goToPreviousMonth}>
-                                            <Icon name="chevron-left" type="feather" size={24} color="#007AFF" />
-                                        </TouchableOpacity>
-                                        <View style={styles.monthYearContainer}>
-                                            <Text style={styles.monthTitle}>{getSelectedMonthName()}</Text>
-                                            <Text style={styles.yearText}>{selectedYear}</Text>
-                                        </View>
-                                        <TouchableOpacity onPress={goToNextMonth}>
-                                            <Icon name="chevron-right" type="feather" size={24} color="#007AFF" />
-                                        </TouchableOpacity>
+                                    <TouchableOpacity onPress={goToPreviousMonth}>
+                                        <Icon name="chevron-left" type="feather" size={24} color="#007AFF" />
+                                    </TouchableOpacity>
+                                    <View style={styles.monthYearContainer}>
+                                        <Text style={styles.monthTitle}>{getSelectedMonthName()}</Text>
+                                        <Text style={styles.yearText}>{selectedYear}</Text>
                                     </View>
-                                )}
-                                ListEmptyComponent={() => (
-                                    <View style={styles.noTasksContainer}>
-                                        <Text style={styles.noTasksText}>
-                                            No tasks for {getSelectedMonthName()} {selectedYear}
-                                        </Text>
+                                    <TouchableOpacity onPress={goToNextMonth}>
+                                        <Icon name="chevron-right" type="feather" size={24} color="#007AFF" />
+                                    </TouchableOpacity>
                                     </View>
-                                )}
+                                }
                             />
-                        ) : (
+                            ) : (
                             <FlatList
                                 data={tasks}
                                 renderItem={renderTask}
@@ -894,7 +918,7 @@ export default function Tasks({ route, navigation }) {
                                 )}
                             />
                         )}
-                    </View>
+                    {/* </View> */}
 
                     {/* floating "+" button */}
                     <TouchableOpacity style={styles.addButton} onPress={handleAddTask}>
@@ -1250,7 +1274,6 @@ const styles = StyleSheet.create({
     },
     flatListContent: {
         paddingBottom: 80,
-        flexGrow: 1,
         // paddingTop: 8
         paddingHorizontal: 16
     },

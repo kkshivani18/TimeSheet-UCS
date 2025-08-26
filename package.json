@@ -77,6 +77,7 @@
     "react-native": "0.79.3",
     "react-native-calendar-range-picker": "^1.6.0",
     "react-native-calendars": "^1.1309.0",
+    "react-native-config": "^1.5.7",
     "react-native-date-picker": "^5.0.7",
     "react-native-dotenv": "^3.4.11",
     "react-native-elements": "3.4.3",

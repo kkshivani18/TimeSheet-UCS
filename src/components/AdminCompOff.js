@@ -310,6 +310,7 @@ export default function AdminCompOff({ navigation }) {
                 renderItem={renderCompOffApplication}
                 keyExtractor={item => item._id || item.id || Math.random().toString()}
                 contentContainerStyle={styles.listContainer}
+                showsVerticalScrollIndicator={false}
             />
 
             {/* Filter Modal */}

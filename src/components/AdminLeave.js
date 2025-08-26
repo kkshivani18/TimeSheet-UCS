@@ -228,7 +228,7 @@ export default function AdminLeave({ navigation }) {
                     data={activeFilter ? filteredRequests : leaveRequests}
                     keyExtractor={(item) => item._id}
                     contentContainerStyle={{ paddingHorizontal: 0}}
-                    showsVerticalScrollIndicator={true}
+                    showsVerticalScrollIndicator={false}
                     renderItem={({ item }) => (
                         <View style={styles.card}>
                             <View style={styles.cardHeader}>
